@@ -26,10 +26,13 @@ async def health(request: Request, probe: bool = False):
         pass
 
     if probe:
-        try:
-            from app.services.social_registry import probe_platforms
-            result["probes"] = await probe_platforms()
-        except ImportError:
-            pass
+        from app.services.cache import social_cache
+        from app.services.social_registry import probe_platforms
+
+        cached = social_cache.get("health:probes")
+        if cached is None:
+            cached = await probe_platforms()
+            social_cache.set("health:probes", cached, ttl=300)
+        result["probes"] = cached
 
     return result

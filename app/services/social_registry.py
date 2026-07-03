@@ -6,6 +6,7 @@ from app.services.social_base import SocialPlatform, UNSUPPORTED
 from app.services.bluesky import BlueskyService
 from app.services.hackernews import HackerNewsService
 from app.services.instagram import InstagramService
+from app.services.linkedin_facebook import FacebookService, LinkedInService
 from app.services.mastodon import MastodonService
 from app.services.tiktok import TikTokService
 from app.services.reddit import RedditService
@@ -23,6 +24,8 @@ PLATFORM_CLASSES: Dict[str, Type[SocialPlatform]] = {
     "youtube": YouTubeService,
     "instagram": InstagramService,
     "tiktok": TikTokService,
+    "linkedin": LinkedInService,
+    "facebook": FacebookService,
 }
 
 
