@@ -8,6 +8,7 @@ from app.services.hackernews import HackerNewsService
 from app.services.mastodon import MastodonService
 from app.services.reddit import RedditService
 from app.services.twitter import TwitterService
+from app.services.youtube import YouTubeService
 
 PLATFORM_CLASSES: Dict[str, Type[SocialPlatform]] = {
     "reddit": RedditService,
@@ -17,6 +18,7 @@ PLATFORM_CLASSES: Dict[str, Type[SocialPlatform]] = {
     "hackernews": HackerNewsService,
     "hn": HackerNewsService,
     "mastodon": MastodonService,
+    "youtube": YouTubeService,
 }
 
 
