@@ -7,9 +7,12 @@ from app.services.bluesky import BlueskyService
 from app.services.hackernews import HackerNewsService
 from app.services.mastodon import MastodonService
 from app.services.reddit import RedditService
+from app.services.twitter import TwitterService
 
 PLATFORM_CLASSES: Dict[str, Type[SocialPlatform]] = {
     "reddit": RedditService,
+    "twitter": TwitterService,
+    "x": TwitterService,
     "bluesky": BlueskyService,
     "hackernews": HackerNewsService,
     "hn": HackerNewsService,
