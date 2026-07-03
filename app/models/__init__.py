@@ -50,23 +50,99 @@ class SearchRequest(BaseModel):
 
 
 class TwitterRequest(BaseModel):
+    # Legacy shape
     username: Optional[str] = None
     tweet_url: Optional[str] = None
     max_tweets: int = Field(default=10, ge=1, le=50)
+    # Unified shape (also accepted on /social/twitter)
+    query_type: Optional[str] = None
+    identifier: Optional[str] = None
+    limit: int = Field(default=10, ge=1, le=50)
+    options: Dict[str, Any] = {}
 
 
 class RedditRequest(BaseModel):
+    # Legacy shape
     subreddit: Optional[str] = None
     post_url: Optional[str] = None
     listing: str = Field(default="hot", pattern="^(hot|new|top|rising)$")
     limit: int = Field(default=10, ge=1, le=50)
+    # Unified shape (also accepted on /social/reddit)
+    query_type: Optional[str] = None
+    identifier: Optional[str] = None
+    options: Dict[str, Any] = {}
+
+
+class SocialQueryType(str, Enum):
+    profile = "profile"
+    posts = "posts"
+    post = "post"
+    search = "search"
+
+
+class SocialRequest(BaseModel):
+    query_type: SocialQueryType = Field(
+        default=SocialQueryType.posts,
+        description="profile | posts | post | search",
+    )
+    identifier: str = Field(
+        ...,
+        description="Username/handle (profile, posts), URL or id (post), or search query (search)",
+    )
+    limit: int = Field(default=10, ge=1, le=50)
+    options: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Platform extras, e.g. {'listing': 'top'} for reddit, {'instance': 'fosstodon.org'} for mastodon",
+    )
+
+
+class SocialPost(BaseModel):
+    id: Optional[str] = None
+    url: Optional[str] = None
+    author: Optional[str] = None
+    text: Optional[str] = None
+    created_at: Optional[str] = None
+    stats: Dict[str, int] = {}      # likes / replies / reposts / views — only what the platform gives
+    media: List[Dict[str, Any]] = []
+    extra: Dict[str, Any] = {}
+
+
+class SocialProfile(BaseModel):
+    username: str
+    display_name: Optional[str] = None
+    bio: Optional[str] = None
+    followers: Optional[int] = None
+    following: Optional[int] = None
+    posts_count: Optional[int] = None
+    avatar_url: Optional[str] = None
+    url: Optional[str] = None
+    verified: Optional[bool] = None
+    extra: Dict[str, Any] = {}
 
 
 class SocialResponse(BaseModel):
     success: bool
     platform: str
-    data: List[Dict[str, Any]] = []
+    status: str = "ok"                  # ok | partial | blocked | error
+    query_type: Optional[str] = None
+    profile: Optional[SocialProfile] = None
+    posts: List[SocialPost] = []
+    data: List[Dict[str, Any]] = []     # legacy/raw payloads (kept for back-compat)
+    source: Optional[str] = None        # strategy that served it, e.g. "fxtwitter", "innertube"
+    cached: bool = False
     error: Optional[str] = None
+
+
+class MultiSearchRequest(BaseModel):
+    query: str
+    platforms: List[str] = ["reddit", "bluesky", "hackernews", "youtube", "mastodon"]
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class MultiSearchResponse(BaseModel):
+    success: bool
+    query: str
+    results: Dict[str, SocialResponse]  # keyed by platform, includes per-platform failures
 
 
 class ExtractRequest(BaseModel):
