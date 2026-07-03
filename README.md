@@ -1,88 +1,183 @@
-# Website Scraper Tool
+# 🦅 ScrapeX — AI Super Agent for Web & Social Media
 
-A Python tool to crawl websites, extract text and metadata, and save results in PDF and TXT formats.
+<p align="center">
+  <img src="https://img.shields.io/badge/status-active-brightgreen" alt="Status">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
+  <img src="https://img.shields.io/badge/python-3.11+-blue" alt="Python">
+  <img src="https://img.shields.io/badge/docker-ready-brightgreen" alt="Docker">
+</p>
 
-## Requirements
+> **The open-source Firecrawl alternative with social media superpowers.**
 
-- Python 3.6+
-- Required packages:
-  - requests
-  - beautifulsoup4
-  - tqdm
-  - reportlab
+Scrape any website. Crawl entire domains. Extract structured data with AI. Scrape Twitter/X and Reddit. All from a single API — no API keys required for basic scraping.
 
-## Setup Steps
+---
 
-1. Install Python 3.6 or higher from python.org
-
-2. Install required packages using pip:
-   ```bash
-   pip install requests beautifulsoup4 tqdm reportlab
-   ```
-
-3. Download or copy the `scrape_site.py` script to your desired directory.
-
-## Usage
-
-Run the tool from the command line:
+## 🚀 Quick Start
 
 ```bash
-python scrape_site.py <URL> [--depth DEPTH] [--max_pages MAX_PAGES] [--output OUTPUT_DIR]
+# Clone
+git clone https://github.com/hemoyt/ScrapeX.git && cd ScrapeX
+
+# Run (Docker)
+docker compose up -d
+
+# That's it. API is live at http://localhost:8000
 ```
 
-### Arguments
+**API docs with interactive "Try it out":** [http://localhost:8000/docs](http://localhost:8000/docs)
 
-- `URL`: The website URL to scrape (required). Can include http:// or https:// or just the domain (will default to https://)
-- `--depth DEPTH`: Maximum crawl depth (default: 2)
-- `--max_pages MAX_PAGES`: Maximum number of pages to scrape (default: 100)
-- `--output OUTPUT_DIR`: Output directory and base filename (default: "output"). Creates "OUTPUT_DIR/OUTPUT_DIR.txt" and "OUTPUT_DIR/OUTPUT_DIR.pdf"
+---
 
-### Examples
+## 📡 API — 9 Endpoints
 
-- Basic usage:
-  ```bash
-  python scrape_site.py https://example.com
-  ```
-  This will scrape example.com with default settings (depth 2, max 100 pages) and save to "output/output.txt" and "output/output.pdf"
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/scrape` | Scrape any URL → clean markdown, metadata, links |
+| `POST` | `/api/v1/crawl` | Crawl an entire site (depth-controlled) |
+| `GET` | `/api/v1/crawl/{id}` | Check crawl job status |
+| `POST` | `/api/v1/search` | Search the web via DuckDuckGo |
+| `POST` | `/api/v1/extract` | AI-powered structured data extraction |
+| `POST` | `/api/v1/social/twitter` | Scrape Twitter/X profiles & tweets |
+| `POST` | `/api/v1/social/reddit` | Scrape subreddits & posts with comments |
+| `GET` | `/health` | Health check |
+| `GET` | `/docs` | Interactive Swagger UI |
 
-- Custom depth and output:
-  ```bash
-  python scrape_site.py https://website.com --depth 3 --output mysite
-  ```
-  This crawls website.com up to depth 3 and saves to "mysite/mysite.txt" and "mysite/mysite.pdf"
+---
 
-## Features
+## 🐍 Python SDK
 
-- Respects robots.txt when possible
-- Extracts visible text, titles, headings, links, alt texts, and metadata
-- Handles internal links and crawled pages within the same domain
-- Skips scripts, styles, ads, forms, iframes
-- Rate limiting (1 second between requests) to be polite to servers
-- Progress indicator showing crawling progress
-- Error handling for failed requests
-- Generates clean PDF with structured content
-- Generates plain TXT file with raw text
-- Handles pagination through internal links (if pages link to each other)
-- Adapts to different HTML structures by focusing on text extraction
+```python
+from scrapex import ScrapeX
 
-## Output Files
+client = ScrapeX(base_url="http://localhost:8000")
 
-- **TXT File**: Contains all raw text organized by page, with section headers for different types of content
-- **PDF File**: clean, readable document with page titles as headings, body text, and organized sections for headings, metadata, links, and alt texts
+# Scrape any website → clean markdown
+page = client.scrape("https://books.toscrape.com")
+print(page["title"])  # "All products | Books to Scrape - Sandbox"
 
-## Limitations
+# Search the web
+results = client.search("best AI frameworks 2026")
 
-- Does not extract images, videos, or other non-text assets
-- May not handle JavaScript-rendered content (requires additional libraries like Selenium for that)
-- Crawls only internal links within the same domain
-- Rate limited to 1 request per second
-- Respects robots.txt but cannot guarantee compliance if site changes
-- PDF generation may not handle complex layouts perfectly
+# Crawl a site (async)
+job = client.crawl("https://example.com", max_depth=2, max_pages=10)
+status = client.crawl_status(job["id"])
 
-## Ethics and Legality
+# AI extraction (needs OpenRouter key)
+data = client.extract(
+    "https://books.toscrape.com",
+    "Extract all book titles and prices as JSON"
+)
 
-- Ensure you have permission to scrape websites
-- Respect robots.txt files
-- Follow website's Terms of Service
-- Be considerate with crawling frequency
-- This tool is for educational/research purposes only
+# Social media
+tweets = client.twitter("elonmusk", max_tweets=10)
+posts = client.reddit("python", listing="hot", limit=5)
+```
+
+---
+
+## 🔥 Features
+
+- ✅ **Web scraping** — Any URL, clean markdown output, metadata, all links
+- ✅ **JS rendering** — Handles SPAs and dynamic sites via Playwright
+- ✅ **Site crawling** — Depth-controlled, domain-scoped, background jobs
+- ✅ **AI extraction** — Describe what you want in natural language → structured JSON
+- ✅ **Web search** — DuckDuckGo-powered, no API key needed
+- ✅ **Reddit** — Posts, comments, subreddits via HTML scraping
+- ✅ **Twitter/X** — Profile tweets via Nitter mirrors
+- ✅ **Python SDK** — Full programmatic access with `pip install`
+- ✅ **Docker** — One command: `docker compose up -d`
+- 🔜 Instagram, LinkedIn, TikTok scrapers
+- 🔜 Agent mode (autonomous browsing)
+- 🔜 Real-time monitoring & webhooks
+
+---
+
+## ⚙️ Configuration
+
+All via `.env` (copy from `.env.example`):
+
+| Variable | Default | What it does |
+|----------|---------|---------------|
+| `SCRAPEX_OPENROUTER_API_KEY` | — | OpenRouter key for AI extraction |
+| `SCRAPEX_AI_MODEL` | `google/gemini-flash-1.5` | LLM model for extraction |
+| `SCRAPEX_DEBUG` | `false` | Enable verbose logging |
+| `SCRAPEX_PROXY_URL` | — | Rotating proxy URL |
+
+**Get an OpenRouter key (free):** [openrouter.ai/keys](https://openrouter.ai/keys)
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────┐     ┌──────────────┐     ┌──────────────┐
+│  Python SDK │────▶│  FastAPI      │────▶│  Playwright  │
+│  (scrapex)  │     │  /api/v1/*    │     │  (JS render) │
+└─────────────┘     └──────┬───────┘     └──────────────┘
+                           │
+              ┌────────────┼────────────┐
+              │            │            │
+         ┌────▼───┐  ┌────▼────┐  ┌────▼────┐
+         │ httpx  │  │ OpenR.. │  │ Nitter  │
+         │ + BS4  │  │ (AI)    │  │ (X.com) │
+         └────────┘  └─────────┘  └─────────┘
+```
+
+---
+
+## 🆚 vs Firecrawl
+
+| | Firecrawl | **ScrapeX** |
+|---|:--:|:--:|
+| Web scraping | ✅ | ✅ |
+| JS rendering | ✅ | ✅ |
+| AI extraction | ✅ | ✅ |
+| Site crawling | ✅ | ✅ |
+| Web search | ✅ | ✅ |
+| Agent mode | ✅ | 🔜 |
+| **Social media** | ❌ | ✅ |
+| **Anti-detection** | Basic | Enhanced |
+| **Price** | $19-$249/mo | **Free & Open Source** |
+
+---
+
+## 📦 Project Structure
+
+```
+ScrapeX/
+├── app/
+│   ├── main.py              # FastAPI application
+│   ├── config.py            # Settings & env vars
+│   ├── routes/
+│   │   ├── scrape.py        # /scrape, /crawl, /search
+│   │   ├── social.py        # /social/twitter, /social/reddit
+│   │   ├── extract.py       # /extract (AI)
+│   │   └── health.py
+│   ├── services/
+│   │   ├── scraper.py       # HTTP + BeautifulSoup + Markdown
+│   │   ├── browser.py       # Playwright JS rendering
+│   │   ├── ai_extractor.py  # OpenRouter AI extraction
+│   │   ├── reddit.py        # old.reddit.com HTML scraper
+│   │   └── twitter.py       # Nitter-based X scraper
+│   └── models/
+│       └── __init__.py      # Pydantic schemas
+├── sdk/python/
+│   ├── setup.py
+│   └── scrapex/
+│       └── __init__.py      # Python client
+├── docker-compose.yml
+├── Dockerfile
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 📄 License
+
+MIT — free for personal and commercial use.
+
+---
+
+Built with ❤️ by [KanyouAI](https://kanyouai.com)

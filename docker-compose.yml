@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  scrapex:
+    build: .
+    container_name: scrapex
+    ports:
+      - "8000:8000"
+    environment:
+      - SCRAPEX_OPENROUTER_API_KEY=${SCRAPEX_OPENROUTER_API_KEY:-}
+      - SCRAPEX_AI_MODEL=${SCRAPEX_AI_MODEL:-google/gemini-flash-1.5}
+      - SCRAPEX_DEBUG=${SCRAPEX_DEBUG:-false}
+    volumes:
+      - ./app:/app/app  # Hot reload for development
+      - ./sdk:/app/sdk
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
