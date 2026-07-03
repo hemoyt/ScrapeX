@@ -23,7 +23,7 @@ async def extract_data(req: ExtractRequest):
 
     # Extract with AI
     extractor = AIExtractor()
-    result = extractor.extract(
+    result = await extractor.extract(
         content=data["content"],
         prompt=req.prompt,
         url=req.url,

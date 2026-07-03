@@ -47,26 +47,114 @@ class SearchRequest(BaseModel):
     query: str
     num_results: int = Field(default=5, ge=1, le=20)
     scrape_results: bool = False
+    include_answer: bool = Field(
+        default=False,
+        description="Synthesize an LLM answer over the results (requires OpenRouter key)",
+    )
+
+
+class SearchResponse(BaseModel):
+    success: bool
+    query: str
+    answer: Optional[str] = None        # only when include_answer and a key is set
+    results: List[Dict[str, Any]] = []  # {title, url, snippet, score, content?}
+    error: Optional[str] = None
 
 
 class TwitterRequest(BaseModel):
+    # Legacy shape
     username: Optional[str] = None
     tweet_url: Optional[str] = None
     max_tweets: int = Field(default=10, ge=1, le=50)
+    # Unified shape (also accepted on /social/twitter)
+    query_type: Optional[str] = None
+    identifier: Optional[str] = None
+    limit: int = Field(default=10, ge=1, le=50)
+    options: Dict[str, Any] = {}
 
 
 class RedditRequest(BaseModel):
+    # Legacy shape
     subreddit: Optional[str] = None
     post_url: Optional[str] = None
     listing: str = Field(default="hot", pattern="^(hot|new|top|rising)$")
     limit: int = Field(default=10, ge=1, le=50)
+    # Unified shape (also accepted on /social/reddit)
+    query_type: Optional[str] = None
+    identifier: Optional[str] = None
+    options: Dict[str, Any] = {}
+
+
+class SocialQueryType(str, Enum):
+    profile = "profile"
+    posts = "posts"
+    post = "post"
+    search = "search"
+
+
+class SocialRequest(BaseModel):
+    query_type: SocialQueryType = Field(
+        default=SocialQueryType.posts,
+        description="profile | posts | post | search",
+    )
+    identifier: str = Field(
+        ...,
+        description="Username/handle (profile, posts), URL or id (post), or search query (search)",
+    )
+    limit: int = Field(default=10, ge=1, le=50)
+    options: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Platform extras, e.g. {'listing': 'top'} for reddit, {'instance': 'fosstodon.org'} for mastodon",
+    )
+
+
+class SocialPost(BaseModel):
+    id: Optional[str] = None
+    url: Optional[str] = None
+    author: Optional[str] = None
+    text: Optional[str] = None
+    created_at: Optional[str] = None
+    stats: Dict[str, int] = {}      # likes / replies / reposts / views — only what the platform gives
+    media: List[Dict[str, Any]] = []
+    extra: Dict[str, Any] = {}
+
+
+class SocialProfile(BaseModel):
+    username: str
+    display_name: Optional[str] = None
+    bio: Optional[str] = None
+    followers: Optional[int] = None
+    following: Optional[int] = None
+    posts_count: Optional[int] = None
+    avatar_url: Optional[str] = None
+    url: Optional[str] = None
+    verified: Optional[bool] = None
+    extra: Dict[str, Any] = {}
 
 
 class SocialResponse(BaseModel):
     success: bool
     platform: str
-    data: List[Dict[str, Any]] = []
+    status: str = "ok"                  # ok | partial | blocked | error
+    query_type: Optional[str] = None
+    profile: Optional[SocialProfile] = None
+    posts: List[SocialPost] = []
+    data: List[Dict[str, Any]] = []     # legacy/raw payloads (kept for back-compat)
+    source: Optional[str] = None        # strategy that served it, e.g. "fxtwitter", "innertube"
+    cached: bool = False
     error: Optional[str] = None
+
+
+class MultiSearchRequest(BaseModel):
+    query: str
+    platforms: List[str] = ["reddit", "bluesky", "hackernews", "youtube", "mastodon"]
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class MultiSearchResponse(BaseModel):
+    success: bool
+    query: str
+    results: Dict[str, SocialResponse]  # keyed by platform, includes per-platform failures
 
 
 class ExtractRequest(BaseModel):
@@ -79,3 +167,37 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     timestamp: str
+
+
+class AgentRequest(BaseModel):
+    query: str = Field(..., description="Natural-language research question")
+    depth: str = Field(default="basic", pattern="^(basic|advanced)$")
+    max_sources: int = Field(default=5, ge=1, le=20)
+    include_social: bool = Field(default=True, description="Let the agent use social platform tools")
+    model: Optional[str] = Field(default=None, description="Override the OpenRouter model")
+
+
+class AgentSource(BaseModel):
+    id: int
+    url: str
+    title: str = ""
+    snippet: str = ""
+    platform: str = "web"
+
+
+class AgentStep(BaseModel):
+    step: int
+    tool: str
+    args: Dict[str, Any] = {}
+    result_summary: str = ""
+
+
+class AgentResponse(BaseModel):
+    success: bool
+    query: str
+    answer: Optional[str] = None       # markdown with [n] citations
+    sources: List[AgentSource] = []
+    steps: List[AgentStep] = []
+    usage: Dict[str, int] = {}         # prompt_tokens, completion_tokens, llm_calls, tool_calls
+    status: str = "ok"                 # ok | no_llm | max_steps_reached | error
+    error: Optional[str] = None

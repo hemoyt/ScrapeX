@@ -1,8 +1,23 @@
 """Browser service — Playwright-based JS rendering for SPAs."""
 import asyncio
 import base64
+import os
 from typing import Optional, Dict, Any
 from playwright.async_api import async_playwright, Browser, Page
+
+from app.config import settings
+
+
+def _find_chromium_executable() -> Optional[str]:
+    """Locate a usable chromium when the Playwright-managed one is missing
+    (e.g. a preinstalled browser at PLAYWRIGHT_BROWSERS_PATH from a different
+    Playwright version)."""
+    browsers_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    if browsers_path:
+        candidate = os.path.join(browsers_path, "chromium")
+        if os.path.exists(candidate):
+            return candidate
+    return None
 
 
 class BrowserService:
@@ -16,15 +31,27 @@ class BrowserService:
 
     async def start(self):
         self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(
-            headless=self.headless,
-            args=[
+        launch_kwargs: Dict[str, Any] = {
+            "headless": self.headless,
+            "args": [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-blink-features=AutomationControlled",
             ],
-        )
+        }
+        proxy = settings.proxy_url or os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+        if proxy:
+            launch_kwargs["proxy"] = {"server": proxy}
+        try:
+            self._browser = await self._playwright.chromium.launch(**launch_kwargs)
+        except Exception:
+            executable = _find_chromium_executable()
+            if not executable:
+                raise
+            self._browser = await self._playwright.chromium.launch(
+                executable_path=executable, **launch_kwargs
+            )
 
     async def stop(self):
         if self._browser:
