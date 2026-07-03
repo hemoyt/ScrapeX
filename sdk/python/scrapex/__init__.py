@@ -9,23 +9,33 @@ class ScrapeX:
     Usage:
         client = ScrapeX(api_key="sx-...")  # or base_url for self-hosted
         result = client.scrape("https://example.com")
-        tweets = client.twitter("elonmusk")
+
+        # Unified social API (10 platforms)
+        posts = client.social("bluesky", "posts", "bsky.app")
+        profile = client.social("youtube", "profile", "@mkbhd")
+        hits = client.social_search("ai agents", platforms=["reddit", "hackernews"])
+
+        # Tavily-style research agent
+        research = client.agent("What are people saying about AI agents?")
+        print(research["answer"], research["sources"])
+
+        # Legacy helpers still work
+        tweets = client.twitter("jack")
         posts = client.reddit("python", listing="hot")
-        data = client.extract("https://shop.com/products", "product names and prices")
     """
 
     def __init__(
         self,
         base_url: str = "http://localhost:8000",
         api_key: Optional[str] = None,
-        timeout: int = 60,
+        timeout: int = 120,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        self.client = httpx.Client(
-            timeout=timeout,
-            headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
-        )
+        headers = {}
+        if api_key:
+            headers = {"Authorization": f"Bearer {api_key}", "X-API-Key": api_key}
+        self.client = httpx.Client(timeout=timeout, headers=headers)
 
     def scrape(
         self,
@@ -64,11 +74,91 @@ class ScrapeX:
         resp.raise_for_status()
         return resp.json()
 
-    def search(self, query: str, num_results: int = 5, scrape_results: bool = False) -> Dict[str, Any]:
-        """Search the web."""
+    def search(
+        self,
+        query: str,
+        num_results: int = 5,
+        scrape_results: bool = False,
+        include_answer: bool = False,
+    ) -> Dict[str, Any]:
+        """Search the web. include_answer=True adds an LLM-synthesized cited answer."""
         resp = self.client.post(
             f"{self.base_url}/api/v1/search",
-            json={"query": query, "num_results": num_results, "scrape_results": scrape_results},
+            json={
+                "query": query,
+                "num_results": num_results,
+                "scrape_results": scrape_results,
+                "include_answer": include_answer,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- unified social API ---
+
+    def social(
+        self,
+        platform: str,
+        query_type: str = "posts",
+        identifier: str = "",
+        limit: int = 10,
+        **options,
+    ) -> Dict[str, Any]:
+        """Unified social scraping.
+
+        platform:   twitter, reddit, bluesky, hackernews, mastodon, youtube,
+                    instagram, tiktok, linkedin, facebook
+        query_type: profile | posts | post | search
+        identifier: username / URL / search query, depending on query_type
+        options:    platform extras, e.g. listing="top" (reddit),
+                    instance="fosstodon.org" (mastodon)
+        """
+        resp = self.client.post(
+            f"{self.base_url}/api/v1/social/{platform}",
+            json={
+                "query_type": query_type,
+                "identifier": identifier,
+                "limit": limit,
+                "options": options,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def social_search(
+        self,
+        query: str,
+        platforms: Optional[List[str]] = None,
+        limit: int = 5,
+    ) -> Dict[str, Any]:
+        """Search one keyword across multiple social platforms at once."""
+        payload: Dict[str, Any] = {"query": query, "limit": limit}
+        if platforms:
+            payload["platforms"] = platforms
+        resp = self.client.post(f"{self.base_url}/api/v1/social/search", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- research agent ---
+
+    def agent(
+        self,
+        query: str,
+        depth: str = "basic",
+        max_sources: int = 5,
+        include_social: bool = True,
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Run the research agent: returns {answer, sources, steps, usage, status}."""
+        resp = self.client.post(
+            f"{self.base_url}/api/v1/agent",
+            json={
+                "query": query,
+                "depth": depth,
+                "max_sources": max_sources,
+                "include_social": include_social,
+                "model": model,
+            },
         )
         resp.raise_for_status()
         return resp.json()
