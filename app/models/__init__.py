@@ -47,6 +47,18 @@ class SearchRequest(BaseModel):
     query: str
     num_results: int = Field(default=5, ge=1, le=20)
     scrape_results: bool = False
+    include_answer: bool = Field(
+        default=False,
+        description="Synthesize an LLM answer over the results (requires OpenRouter key)",
+    )
+
+
+class SearchResponse(BaseModel):
+    success: bool
+    query: str
+    answer: Optional[str] = None        # only when include_answer and a key is set
+    results: List[Dict[str, Any]] = []  # {title, url, snippet, score, content?}
+    error: Optional[str] = None
 
 
 class TwitterRequest(BaseModel):
@@ -155,3 +167,37 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     timestamp: str
+
+
+class AgentRequest(BaseModel):
+    query: str = Field(..., description="Natural-language research question")
+    depth: str = Field(default="basic", pattern="^(basic|advanced)$")
+    max_sources: int = Field(default=5, ge=1, le=20)
+    include_social: bool = Field(default=True, description="Let the agent use social platform tools")
+    model: Optional[str] = Field(default=None, description="Override the OpenRouter model")
+
+
+class AgentSource(BaseModel):
+    id: int
+    url: str
+    title: str = ""
+    snippet: str = ""
+    platform: str = "web"
+
+
+class AgentStep(BaseModel):
+    step: int
+    tool: str
+    args: Dict[str, Any] = {}
+    result_summary: str = ""
+
+
+class AgentResponse(BaseModel):
+    success: bool
+    query: str
+    answer: Optional[str] = None       # markdown with [n] citations
+    sources: List[AgentSource] = []
+    steps: List[AgentStep] = []
+    usage: Dict[str, int] = {}         # prompt_tokens, completion_tokens, llm_calls, tool_calls
+    status: str = "ok"                 # ok | no_llm | max_steps_reached | error
+    error: Optional[str] = None

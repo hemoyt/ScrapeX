@@ -1,7 +1,7 @@
 """Scraping routes — /scrape, /crawl, /search."""
 import uuid
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from app.models import ScrapeRequest, ScrapeResponse, CrawlRequest, CrawlStatus, SearchRequest
+from app.models import ScrapeRequest, ScrapeResponse, CrawlRequest, CrawlStatus, SearchRequest, SearchResponse
 from app.services import ScraperService, BrowserService, AIExtractor
 
 router = APIRouter()
@@ -52,7 +52,7 @@ async def scrape_url(req: ScrapeRequest):
         # AI extraction
         if req.extract_ai and result.get("content") and req.ai_prompt:
             extractor = AIExtractor()
-            extracted = extractor.extract(
+            extracted = await extractor.extract(
                 content=result["content"],
                 prompt=req.ai_prompt,
                 url=req.url,
@@ -141,50 +141,74 @@ async def _run_crawl(job_id: str, req: CrawlRequest):
         scraper.close()
 
 
-@router.post("/search")
+@router.post("/search", response_model=SearchResponse)
 async def search_web(req: SearchRequest):
-    """Search the web and optionally scrape results."""
-    # Use DuckDuckGo HTML (no API key needed)
-    import httpx
-    from bs4 import BeautifulSoup
+    """Search the web (keyless). Optionally scrape results and/or synthesize
+    an LLM answer over them (include_answer, Tavily-style)."""
+    from app.services.search import SearchService
 
+    service = SearchService()
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
-                "https://html.duckduckgo.com/html/",
-                params={"q": req.query},
-                headers={"User-Agent": "Mozilla/5.0 ScrapeX/0.1"},
-            )
-            soup = BeautifulSoup(resp.text, "html.parser")
+        results = await service.search(req.query, req.num_results)
+    except Exception as e:
+        return SearchResponse(success=False, query=req.query, error=str(e))
+    finally:
+        await service.aclose()
 
-        results = []
-        for r in soup.select(".result")[:req.num_results]:
-            title_el = r.select_one(".result__title a")
-            snippet_el = r.select_one(".result__snippet")
-            link_el = r.select_one(".result__url")
+    # Optionally scrape top results for full content
+    if req.scrape_results and results:
+        import asyncio
 
-            title = title_el.get_text(strip=True) if title_el else ""
-            snippet = snippet_el.get_text(strip=True) if snippet_el else ""
-            link = link_el.get_text(strip=True) if link_el else ""
-
-            # Clean link
-            if link.startswith("//"):
-                link = "https:" + link
-
-            results.append({"title": title, "snippet": snippet, "url": link})
-
-        # Optionally scrape each result
-        if req.scrape_results and results:
-            scraper = ScraperService()
-            for r in results[:3]:  # Limit to 3 to avoid abuse
+        scraper = ScraperService()
+        try:
+            for r in results[:3]:  # limit to 3 to avoid abuse
                 try:
-                    data = scraper.scrape(r["url"])
-                    r["content"] = data["content"][:3000]
+                    data = await asyncio.to_thread(scraper.scrape, r["url"])
+                    r["content"] = (data.get("content") or "")[:3000]
                 except Exception:
                     r["content"] = None
+        finally:
             scraper.close()
 
-        return {"success": True, "query": req.query, "results": results}
+    # Optionally synthesize an answer (graceful without an OpenRouter key)
+    answer = None
+    if req.include_answer and results:
+        answer = await _synthesize_answer(req.query, results)
 
-    except Exception as e:
-        return {"success": False, "query": req.query, "error": str(e)}
+    return SearchResponse(success=True, query=req.query, answer=answer, results=results)
+
+
+async def _synthesize_answer(query: str, results: list) -> str | None:
+    """One-shot LLM answer over search results with [n] citations."""
+    from app.config import settings
+
+    if not settings.openrouter_api_key:
+        return None
+
+    from openai import AsyncOpenAI
+
+    blocks = []
+    for i, r in enumerate(results[:5], 1):
+        content = r.get("content") or r.get("snippet") or ""
+        blocks.append(f"[{i}] {r['title']} — {r['url']}\n{content[:2000]}")
+
+    client = AsyncOpenAI(base_url=settings.openrouter_base_url, api_key=settings.openrouter_api_key)
+    try:
+        response = await client.chat.completions.create(
+            model=settings.agent_model or settings.ai_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Answer the user's query using ONLY the numbered search results. "
+                        "Be concise, cite sources inline as [n], and say if the results are insufficient."
+                    ),
+                },
+                {"role": "user", "content": f"Query: {query}\n\nResults:\n\n" + "\n\n".join(blocks)},
+            ],
+            temperature=0.2,
+            max_tokens=800,
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return None

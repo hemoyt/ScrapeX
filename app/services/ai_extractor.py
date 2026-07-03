@@ -1,7 +1,7 @@
 """AI-powered data extraction using OpenRouter."""
 import json
 from typing import Optional, Dict, Any
-from openai import OpenAI
+from openai import AsyncOpenAI
 from app.config import settings
 
 
@@ -11,12 +11,13 @@ class AIExtractor:
     def __init__(self):
         self.client = None
         if settings.openrouter_api_key:
-            self.client = OpenAI(
+            # Async client — the sync one blocked the event loop inside routes.
+            self.client = AsyncOpenAI(
                 base_url=settings.openrouter_base_url,
                 api_key=settings.openrouter_api_key,
             )
 
-    def extract(self, content: str, prompt: str, url: str = "") -> Dict[str, Any]:
+    async def extract(self, content: str, prompt: str, url: str = "") -> Dict[str, Any]:
         """Extract structured data from content using an AI prompt.
 
         Args:
@@ -49,7 +50,7 @@ PAGE CONTENT:
 Return ONLY valid JSON with the extracted data."""
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=settings.ai_model,
                 messages=[
                     {"role": "system", "content": system_prompt},

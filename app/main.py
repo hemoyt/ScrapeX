@@ -9,7 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.auth import require_api_key
 from app.config import settings
 from app.ratelimit import limiter
-from app.routes import scrape, social, extract, health
+from app.routes import scrape, social, extract, health, agent
 
 app = FastAPI(
     title="ScrapeX",
@@ -47,6 +47,10 @@ app.include_router(
 )
 app.include_router(
     extract.router, prefix="/api/v1", tags=["AI Extraction"],
+    dependencies=[Depends(require_api_key)],
+)
+app.include_router(
+    agent.router, prefix="/api/v1", tags=["Research Agent"],
     dependencies=[Depends(require_api_key)],
 )
 
@@ -97,5 +101,6 @@ async def root():
             "extract": "/api/v1/extract",
             "social": "/api/v1/social/{platform}",
             "social_search": "/api/v1/social/search",
+            "agent": "/api/v1/agent",
         },
     }
