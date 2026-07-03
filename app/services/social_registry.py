@@ -3,10 +3,17 @@ import asyncio
 from typing import Dict, Type
 
 from app.services.social_base import SocialPlatform, UNSUPPORTED
+from app.services.bluesky import BlueskyService
+from app.services.hackernews import HackerNewsService
+from app.services.mastodon import MastodonService
 from app.services.reddit import RedditService
 
 PLATFORM_CLASSES: Dict[str, Type[SocialPlatform]] = {
     "reddit": RedditService,
+    "bluesky": BlueskyService,
+    "hackernews": HackerNewsService,
+    "hn": HackerNewsService,
+    "mastodon": MastodonService,
 }
 
 
