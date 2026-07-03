@@ -5,7 +5,9 @@ from typing import Dict, Type
 from app.services.social_base import SocialPlatform, UNSUPPORTED
 from app.services.bluesky import BlueskyService
 from app.services.hackernews import HackerNewsService
+from app.services.instagram import InstagramService
 from app.services.mastodon import MastodonService
+from app.services.tiktok import TikTokService
 from app.services.reddit import RedditService
 from app.services.twitter import TwitterService
 from app.services.youtube import YouTubeService
@@ -19,6 +21,8 @@ PLATFORM_CLASSES: Dict[str, Type[SocialPlatform]] = {
     "hn": HackerNewsService,
     "mastodon": MastodonService,
     "youtube": YouTubeService,
+    "instagram": InstagramService,
+    "tiktok": TikTokService,
 }
 
 
