@@ -112,13 +112,10 @@ def _build_tools(include_social: bool) -> List[dict]:
 
 class ResearchAgent:
     def __init__(self, model: Optional[str] = None):
-        self.model = model or settings.agent_model or settings.ai_model
-        self.client: Optional[AsyncOpenAI] = None
-        if settings.openrouter_api_key:
-            self.client = AsyncOpenAI(
-                base_url=settings.openrouter_base_url,
-                api_key=settings.openrouter_api_key,
-            )
+        from app.services.ai_provider import get_ai_client, resolve_model
+
+        self.model = model or settings.agent_model or resolve_model()
+        self.client: Optional[AsyncOpenAI] = get_ai_client()
         self._sources: Dict[str, AgentSource] = {}  # url -> source
         self._steps: List[AgentStep] = []
         self._usage = {"prompt_tokens": 0, "completion_tokens": 0, "llm_calls": 0, "tool_calls": 0}
@@ -334,5 +331,8 @@ class ResearchAgent:
             steps=self._steps,
             usage=self._usage,
             status="no_llm",
-            error="No SCRAPEX_OPENROUTER_API_KEY configured — returning search results without an AI answer.",
+            error=(
+                "No AI provider configured — returning search results without an AI answer. "
+                "Set SCRAPEX_AI_PROVIDER + SCRAPEX_AI_API_KEY (or point it at a local ollama/lmstudio)."
+            ),
         )

@@ -111,7 +111,7 @@ async def test_no_llm_degrades():
     assert result.status == "no_llm"
     assert result.competitors == []
     assert result.sources  # grounding search still returned
-    assert "OPENROUTER" in result.error.upper()
+    assert "SCRAPEX_AI" in result.error.upper()
 
 
 @respx.mock

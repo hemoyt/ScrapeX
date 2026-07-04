@@ -37,12 +37,9 @@ Rules: at most {limit} competitors, most direct first. Real companies/products o
 
 class CompetitorFinder:
     def __init__(self):
-        self.client: Optional[AsyncOpenAI] = None
-        if settings.openrouter_api_key:
-            self.client = AsyncOpenAI(
-                base_url=settings.openrouter_base_url,
-                api_key=settings.openrouter_api_key,
-            )
+        from app.services.ai_provider import get_ai_client
+
+        self.client: Optional[AsyncOpenAI] = get_ai_client()
 
     async def find(self, req: CompetitorRequest) -> CompetitorResponse:
         # Ground the LLM on live search either way
@@ -61,8 +58,9 @@ class CompetitorFinder:
                 sources=results,
                 status="no_llm",
                 error=(
-                    "Competitor discovery needs an LLM. Set SCRAPEX_OPENROUTER_API_KEY "
-                    "(free at openrouter.ai/keys). The grounding search results are included."
+                    "Competitor discovery needs an LLM. Set SCRAPEX_AI_PROVIDER + "
+                    "SCRAPEX_AI_API_KEY (any of anthropic/openai/deepseek/xai/openrouter/...), "
+                    "or run a local one (ollama/lmstudio). The grounding search results are included."
                 ),
             )
 

@@ -142,7 +142,7 @@ async def test_agent_no_llm_degrades_to_search(_search_mocked, monkeypatch):
     assert result.status == "no_llm"
     assert result.answer is None
     assert len(result.sources) == 2
-    assert "OPENROUTER" in result.error.upper()
+    assert "AI PROVIDER" in result.error.upper()
 
 
 async def test_agent_llm_error_reported(_search_mocked):
