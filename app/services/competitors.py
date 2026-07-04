@@ -97,8 +97,11 @@ class CompetitorFinder:
             f"- {r['title']} ({r['url']})\n  {r['snippet']}" for r in results
         ) or "(no search results available — rely on well-known facts only)"
 
+        from app.services.ai_provider import resolve_model
+        from app.services import runtime_settings as rt
+
         response = await self.client.chat.completions.create(
-            model=settings.agent_model or settings.ai_model,
+            model=rt.get("agent_model") or resolve_model(),
             messages=[{
                 "role": "user",
                 "content": DISCOVERY_PROMPT.format(product=product, results=blocks, limit=limit),

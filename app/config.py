@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     ai_base_url: Optional[str] = None    # preset override; required for provider=custom
     ai_model: str = "google/gemini-flash-1.5"
 
+    # Where UI-set runtime settings (AI provider/key/model) are persisted.
+    settings_file: str = ".scrapex_settings.json"
+
     # OpenRouter (legacy names — still honored for back-compat)
     openrouter_api_key: Optional[str] = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"

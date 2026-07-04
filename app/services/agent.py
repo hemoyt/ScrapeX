@@ -113,8 +113,9 @@ def _build_tools(include_social: bool) -> List[dict]:
 class ResearchAgent:
     def __init__(self, model: Optional[str] = None):
         from app.services.ai_provider import get_ai_client, resolve_model
+        from app.services import runtime_settings as rt
 
-        self.model = model or settings.agent_model or resolve_model()
+        self.model = model or rt.get("agent_model") or resolve_model()
         self.client: Optional[AsyncOpenAI] = get_ai_client()
         self._sources: Dict[str, AgentSource] = {}  # url -> source
         self._steps: List[AgentStep] = []
