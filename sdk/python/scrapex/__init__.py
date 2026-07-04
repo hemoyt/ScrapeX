@@ -1,4 +1,6 @@
 """ScrapeX Python SDK — programmatic access to the ScrapeX API."""
+import time
+
 import httpx
 from typing import Optional, Dict, Any, List
 
@@ -14,6 +16,11 @@ class ScrapeX:
         posts = client.social("bluesky", "posts", "bsky.app")
         profile = client.social("youtube", "profile", "@mkbhd")
         hits = client.social_search("ai agents", platforms=["reddit", "hackernews"])
+
+        # Apify-style dataset run: paginate until you have ALL the data
+        run = client.run_social("hackernews", "search", "llm agents", max_items=500)
+        run = client.wait_for_run(run["id"])
+        items = client.dataset_all_items(run["dataset_id"])
 
         # Tavily-style research agent
         research = client.agent("What are people saying about AI agents?")
@@ -138,6 +145,72 @@ class ScrapeX:
         resp = self.client.post(f"{self.base_url}/api/v1/social/search", json=payload)
         resp.raise_for_status()
         return resp.json()
+
+    # --- Apify-style dataset runs ---
+
+    def run_social(
+        self,
+        platform: str,
+        query_type: str = "posts",
+        identifier: str = "",
+        max_items: int = 100,
+        **options,
+    ) -> Dict[str, Any]:
+        """Start a dataset run: paginates the platform in the background until
+        max_items are collected or the server's time budget runs out."""
+        resp = self.client.post(
+            f"{self.base_url}/api/v1/runs",
+            json={
+                "platform": platform,
+                "query_type": query_type,
+                "identifier": identifier,
+                "max_items": max_items,
+                "options": options,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def run_status(self, run_id: str) -> Dict[str, Any]:
+        resp = self.client.get(f"{self.base_url}/api/v1/runs/{run_id}")
+        resp.raise_for_status()
+        return resp.json()
+
+    def wait_for_run(self, run_id: str, poll: float = 2.0, timeout: float = 600.0) -> Dict[str, Any]:
+        """Block until the run leaves READY/RUNNING (or `timeout` seconds pass)."""
+        deadline = time.monotonic() + timeout
+        while True:
+            run = self.run_status(run_id)
+            if run["status"] not in ("READY", "RUNNING") or time.monotonic() > deadline:
+                return run
+            time.sleep(poll)
+
+    def dataset_items(
+        self,
+        dataset_id: str,
+        offset: int = 0,
+        limit: int = 100,
+        format: str = "json",
+    ) -> Any:
+        """Fetch dataset items. format='json' returns a dict envelope with paging
+        info; 'ndjson' and 'csv' return the raw text body."""
+        resp = self.client.get(
+            f"{self.base_url}/api/v1/datasets/{dataset_id}/items",
+            params={"offset": offset, "limit": limit, "format": format},
+        )
+        resp.raise_for_status()
+        return resp.json() if format == "json" else resp.text
+
+    def dataset_all_items(self, dataset_id: str, page_size: int = 500) -> List[Dict[str, Any]]:
+        """Drain the whole dataset into a list, paging under the hood."""
+        items: List[Dict[str, Any]] = []
+        offset = 0
+        while True:
+            page = self.dataset_items(dataset_id, offset=offset, limit=page_size)
+            items.extend(page["items"])
+            offset += page["count"]
+            if offset >= page["total"] or page["count"] == 0:
+                return items
 
     def competitors(
         self,

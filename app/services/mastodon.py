@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, Tuple
 import httpx
 from bs4 import BeautifulSoup
 
-from app.models import SocialPost, SocialProfile, SocialQueryType, SocialResponse
+from app.models import SocialPost, SocialProfile, SocialQueryType, SocialRequest, SocialResponse
 from app.services.net import make_async_client
 from app.services.social_base import BEST_EFFORT, RELIABLE, SocialPlatform
 
@@ -150,6 +150,32 @@ class MastodonService(SocialPlatform):
         resp.raise_for_status()
         statuses = resp.json().get("statuses", [])[:limit]
         return self.ok(posts=[self._to_post(s) for s in statuses], data=statuses, source=instance)
+
+    async def fetch_page(
+        self, req: SocialRequest, cursor: Optional[str] = None
+    ) -> Tuple[SocialResponse, Optional[str]]:
+        """Mastodon paginates timelines with `max_id=<last status id>`."""
+        if req.query_type != SocialQueryType.posts:
+            return await super().fetch_page(req, cursor)
+
+        user, instance = self._split_identifier(req.identifier, req.options)
+        account = await self._lookup_account(user, instance)
+        params: Dict[str, Any] = {"limit": min(req.limit, 40)}
+        if cursor:
+            params["max_id"] = cursor
+        resp = await self.client.get(
+            f"https://{instance}/api/v1/accounts/{account['id']}/statuses", params=params
+        )
+        resp.raise_for_status()
+        statuses = resp.json()
+        out = self.ok(
+            posts=[self._to_post(s) for s in statuses],
+            data=statuses,
+            source=instance,
+        )
+        out.query_type = req.query_type.value
+        next_cursor = str(statuses[-1]["id"]) if statuses and statuses[-1].get("id") else None
+        return out, next_cursor
 
     # --- helpers ---
 

@@ -1,7 +1,7 @@
 """Base class for all social platform scrapers."""
 import hashlib
 from abc import ABC
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 from app.config import settings
 from app.models import SocialQueryType, SocialRequest, SocialResponse
@@ -85,6 +85,26 @@ class SocialPlatform(ABC):
         if resp.success:
             social_cache.set(cache_key, resp, ttl=settings.cache_ttl)
         return resp
+
+    async def fetch_page(
+        self, req: SocialRequest, cursor: Optional[str] = None
+    ) -> Tuple[SocialResponse, Optional[str]]:
+        """One page of results for dataset runs, plus a continuation cursor.
+
+        Platforms with real pagination (reddit, hackernews, bluesky, mastodon)
+        override this; the default serves a single page and ends the run.
+        Unlike fetch(), errors propagate — the run worker handles them.
+        """
+        handler = {
+            SocialQueryType.profile: self.get_profile,
+            SocialQueryType.posts: self.get_posts,
+            SocialQueryType.post: self.get_post,
+            SocialQueryType.search: self.search,
+        }[req.query_type]
+        resp = await handler(req.identifier, req.limit, req.options)
+        resp.platform = resp.platform or self.name
+        resp.query_type = req.query_type.value
+        return resp, None
 
     def _cache_key(self, req: SocialRequest) -> str:
         opts = hashlib.md5(repr(sorted(req.options.items())).encode()).hexdigest()[:8]

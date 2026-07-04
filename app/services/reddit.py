@@ -1,11 +1,11 @@
 """Reddit scraper — HTML-based scraping via old.reddit.com (bypasses API blocks)."""
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 import httpx
 from bs4 import BeautifulSoup
 
-from app.models import SocialPost, SocialQueryType, SocialResponse
+from app.models import SocialPost, SocialQueryType, SocialRequest, SocialResponse
 from app.services.net import make_async_client
 from app.services.social_base import RELIABLE, SocialPlatform
 
@@ -143,6 +143,31 @@ class RedditService(SocialPlatform):
             data=[data],
             source="old.reddit.com",
         )
+
+    async def fetch_page(
+        self, req: SocialRequest, cursor: Optional[str] = None
+    ) -> Tuple[SocialResponse, Optional[str]]:
+        """old.reddit paginates listings and search with `after=<fullname>`."""
+        after = f"&after={cursor}" if cursor else ""
+        if req.query_type == SocialQueryType.posts:
+            listing = req.options.get("listing", "hot")
+            url = f"{self.BASE}/r/{req.identifier}/{listing}/?limit={min(req.limit, 100)}{after}"
+            raw = await self._scrape_listing(url, req.limit, subreddit=req.identifier)
+        elif req.query_type == SocialQueryType.search:
+            base = f"{self.BASE}/r/{req.options['subreddit']}" if req.options.get("subreddit") else self.BASE
+            url = (
+                f"{base}/search?q={quote(req.identifier)}&sort=relevance"
+                f"&restrict_sr={'on' if req.options.get('subreddit') else 'off'}{after}"
+            )
+            raw = await self._scrape_search(url, req.limit)
+        else:
+            return await super().fetch_page(req, cursor)
+
+        resp = self.ok(posts=[self._to_post(p) for p in raw], data=raw, source="old.reddit.com")
+        resp.query_type = req.query_type.value
+        last_id = raw[-1].get("id") if raw else None
+        next_cursor = f"t3_{last_id}" if last_id else None
+        return resp, next_cursor
 
     def _to_post(self, p: Dict[str, Any]) -> SocialPost:
         return SocialPost(

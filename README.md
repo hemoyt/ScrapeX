@@ -68,6 +68,70 @@ Returns `{answer, sources[], steps[], usage, status}`. The `steps` array is a fu
 
 ---
 
+## 📦 Runs & Datasets — get ALL the data (Apify-style)
+
+The sync `/social` endpoints are built for speed: one page, `limit ≤ 50`, one HTTP request. That's the wrong shape when you want *everything* — a full subreddit listing, 500 HN hits, a whole Bluesky feed. **Runs** fix the limited-time problem the same way Apify does:
+
+1. `POST /api/v1/runs` starts a **background job** — your HTTP request returns immediately, so the scrape is no longer limited by request timeouts.
+2. The run **paginates the platform with real cursors** (Reddit `after=`, HN Algolia pages, Bluesky cursors, Mastodon `max_id`) until it has `max_items`, the platform runs out, or the time budget (`SCRAPEX_RUN_TIME_BUDGET`, default 240s) is spent.
+3. Every item lands in a **dataset** you can page through and export as **JSON, NDJSON, or CSV**.
+
+```bash
+# 1. Start a run — up to 500 items instead of the sync cap of 50
+curl -X POST localhost:8000/api/v1/runs -H 'Content-Type: application/json' \
+  -d '{"platform": "hackernews", "query_type": "search", "identifier": "llm agents", "max_items": 500}'
+# -> {"id": "6c883f636117", "dataset_id": "083f07a8eb4f", "status": "READY", ...}
+
+# 2. Poll until SUCCEEDED (also: TIMED_OUT keeps partial data, FAILED explains why)
+curl localhost:8000/api/v1/runs/6c883f636117
+
+# 3. Export the dataset — pick your format
+curl "localhost:8000/api/v1/datasets/083f07a8eb4f/items?offset=0&limit=100"   # JSON envelope
+curl "localhost:8000/api/v1/datasets/083f07a8eb4f/items?format=ndjson"        # 1 item per line
+curl "localhost:8000/api/v1/datasets/083f07a8eb4f/items?format=csv" -o out.csv
+```
+
+How a run flows through the system:
+
+```mermaid
+sequenceDiagram
+    participant C as Client / SDK
+    participant A as ScrapeX API
+    participant W as Run worker
+    participant P as Platform (reddit, hn, bluesky, mastodon, ...)
+    C->>A: POST /api/v1/runs (max_items=500)
+    A-->>C: 202 run_id + dataset_id (instantly)
+    loop until max_items, no cursor left, or time budget spent
+        W->>P: fetch_page(cursor)
+        P-->>W: page of posts + next cursor
+        W->>W: dedupe, push into dataset
+    end
+    C->>A: GET /runs/id (poll)
+    A-->>C: SUCCEEDED, item_count=500
+    C->>A: GET /datasets/id/items?format=csv
+    A-->>C: full dataset export
+```
+
+Run lifecycle — every terminal state keeps whatever data was already collected:
+
+```mermaid
+stateDiagram-v2
+    [*] --> READY: POST /runs
+    READY --> RUNNING: worker starts
+    RUNNING --> SUCCEEDED: max_items reached or platform exhausted
+    RUNNING --> TIMED_OUT: time budget spent (partial data kept)
+    RUNNING --> ABORTED: POST /runs/id/abort
+    RUNNING --> FAILED: first page errored (honest error message)
+    SUCCEEDED --> [*]
+    TIMED_OUT --> [*]
+    ABORTED --> [*]
+    FAILED --> [*]
+```
+
+Cursor pagination is implemented natively for **Reddit, Hacker News, Bluesky, and Mastodon** today; other platforms serve a single (still deduped) page per run. Verified live: 150 HN items in 5.2s, 120 Reddit posts in 5.7s, 120 Bluesky posts in 3.7s, 90 Mastodon statuses in 7.2s — all past the old 50-item ceiling.
+
+---
+
 ## 📱 Social Platform Support (honest matrix)
 
 Every platform speaks the same request shape via `POST /api/v1/social/{platform}`:
@@ -95,6 +159,63 @@ Every platform speaks the same request shape via `POST /api/v1/social/{platform}
 
 Every response includes `status` (`ok | partial | blocked | error`), `source` (which strategy served it), normalized `posts[]`/`profile`, and the raw payload in `data[]`. Check `GET /health` for the capability matrix, or `GET /health?probe=true` for **live** platform reachability from your server.
 
+The same matrix as a picture — of the 40 platform × endpoint combinations, half are fully reliable and only 2 are hard-blocked (Twitter timelines/search, until you point `SCRAPEX_NITTER_INSTANCES` at a live mirror):
+
+```mermaid
+pie showData
+    title Endpoint reliability across 10 platforms (40 combinations)
+    "Reliable" : 20
+    "Best-effort" : 9
+    "Blocked (keyless)" : 2
+    "Not offered" : 9
+```
+
+---
+
+## 🗺️ Architecture
+
+```mermaid
+flowchart LR
+    subgraph Clients
+        UI[Web UI]
+        SDK[Python SDK]
+        CURL[curl / any HTTP]
+    end
+
+    subgraph API["FastAPI (auth + rate limit + cache)"]
+        AG["/agent"]
+        SO["/social/:platform"]
+        RU["/runs + /datasets"]
+        SC["/scrape /crawl /search"]
+    end
+
+    subgraph Engine
+        AGENT["Research agent<br/>tool loop"]
+        RUNNER["Run worker<br/>cursor pagination + time budget"]
+        REG["Platform registry"]
+    end
+
+    subgraph Platforms["10 platforms, all keyless"]
+        P1["Reddit · HN · Bluesky · Mastodon"]
+        P2["YouTube · Twitter/X"]
+        P3["Instagram · TikTok · LinkedIn · Facebook"]
+    end
+
+    UI --> API
+    SDK --> API
+    CURL --> API
+    AG --> AGENT
+    SO --> REG
+    RU --> RUNNER
+    RUNNER --> REG
+    AGENT --> REG
+    AGENT --> SC
+    REG --> P1
+    REG --> P2
+    REG --> P3
+    RUNNER --> DS[("Datasets<br/>JSON · NDJSON · CSV")]
+```
+
 ---
 
 ## 📡 API
@@ -106,6 +227,10 @@ Every response includes `status` (`ok | partial | blocked | error`), `source` (w
 | `POST` | `/api/v1/agent` | 🆕 Research agent → cited answer + sources + trace |
 | `POST` | `/api/v1/social/{platform}` | 🆕 Unified social scraping (10 platforms) |
 | `POST` | `/api/v1/social/search` | 🆕 One keyword across many platforms, concurrently |
+| `POST` | `/api/v1/runs` | 🆕 Start an Apify-style dataset run (paginate until `max_items`) |
+| `GET` | `/api/v1/runs`, `/api/v1/runs/{id}` | 🆕 List runs / poll run status |
+| `POST` | `/api/v1/runs/{id}/abort` | 🆕 Abort a running job (keeps collected items) |
+| `GET` | `/api/v1/datasets/{id}/items` | 🆕 Page/export a dataset (`format=json\|ndjson\|csv`) |
 | `POST` | `/api/v1/search` | Web search (DDG → Startpage fallback), optional AI answer |
 | `POST` | `/api/v1/scrape` | Scrape any URL → clean markdown, metadata, links |
 | `POST` | `/api/v1/crawl` | Crawl a site (background job) |
@@ -142,6 +267,12 @@ top     = client.social("reddit", "posts", "python", listing="top")
 # Cross-platform search
 hits = client.social_search("ai agents", platforms=["reddit", "hackernews", "bluesky"])
 
+# Get ALL the data — Apify-style run -> dataset (no 50-item cap)
+run   = client.run_social("hackernews", "search", "llm agents", max_items=500)
+run   = client.wait_for_run(run["id"])
+items = client.dataset_all_items(run["dataset_id"])          # every item
+csv_  = client.dataset_items(run["dataset_id"], format="csv")  # or export
+
 # Web search with AI answer
 result = client.search("best vector databases 2026", include_answer=True)
 
@@ -166,6 +297,9 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 | `SCRAPEX_RATE_LIMIT_REQUESTS` | `60` | Requests/minute per client IP (in-process) |
 | `SCRAPEX_CACHE_TTL` | `300` | Seconds to cache social responses |
 | `SCRAPEX_SOCIAL_TIMEOUT` | `20` | Per-platform timeout (s) |
+| `SCRAPEX_RUN_TIME_BUDGET` | `240` | Seconds a dataset run may spend paginating |
+| `SCRAPEX_RUN_MAX_ITEMS` | `1000` | Hard cap on `max_items` per run |
+| `SCRAPEX_RUN_PAGE_DELAY` | `0.5` | Politeness delay between pages in a run |
 | `SCRAPEX_NITTER_INSTANCES` | — | Comma-separated Nitter mirrors for Twitter timelines |
 | `SCRAPEX_PROXY_URL` | — | Outbound proxy for scraping |
 | `SCRAPEX_DEBUG` | `false` | Verbose logging |
@@ -182,6 +316,7 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 | Search with cited AI answer | ❌ | ✅ | ✅ |
 | Research agent (tool loop + trace) | 🟡 | 🟡 | ✅ |
 | **Social media (10 platforms)** | ❌ | ❌ | ✅ |
+| Apify-style dataset runs (JSON/NDJSON/CSV export) | 🟡 | ❌ | ✅ |
 | Honest per-platform status | — | — | ✅ |
 | Price | $19–$249/mo | $30+/mo | **Free & self-hosted** |
 
@@ -191,7 +326,7 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-pytest -q                              # 59 tests, no network needed
+pytest -q                              # 74 tests, no network needed
 python scripts/verify_platforms.py    # live smoke test from YOUR egress IP
 uvicorn app.main:app --reload
 ```
@@ -214,11 +349,13 @@ ScrapeX/
 │   │   ├── agent.py             # /agent — research agent
 │   │   ├── scrape.py            # /scrape, /crawl, /search
 │   │   ├── social.py            # /social/{platform}, /social/search
+│   │   ├── datasets.py          # /runs, /datasets — Apify-style jobs & exports
 │   │   └── extract.py, health.py
 │   ├── services/
 │   │   ├── agent.py             # ResearchAgent tool loop
+│   │   ├── datasets.py          # run worker: cursor pagination, time budget, dedupe
 │   │   ├── search.py            # DDG → Startpage search chain
-│   │   ├── social_base.py       # SocialPlatform base (cache, degradation)
+│   │   ├── social_base.py       # SocialPlatform base (cache, degradation, fetch_page)
 │   │   ├── social_registry.py   # platform name → service
 │   │   ├── twitter.py, reddit.py, youtube.py, bluesky.py,
 │   │   ├── hackernews.py, mastodon.py, instagram.py, tiktok.py,

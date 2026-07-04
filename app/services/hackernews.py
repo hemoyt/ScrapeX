@@ -1,10 +1,10 @@
 """Hacker News scraper — official Algolia search API, no auth required."""
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import httpx
 
-from app.models import SocialPost, SocialProfile, SocialQueryType, SocialResponse
+from app.models import SocialPost, SocialProfile, SocialQueryType, SocialRequest, SocialResponse
 from app.services.net import make_async_client
 from app.services.social_base import RELIABLE, SocialPlatform
 
@@ -103,6 +103,32 @@ class HackerNewsService(SocialPlatform):
         data = await self._get(path, {"query": identifier, "tags": "story", "hitsPerPage": limit})
         hits = data.get("hits", [])[:limit]
         return self.ok(posts=[self._to_post(h) for h in hits], data=hits, source="hn_algolia")
+
+    async def fetch_page(
+        self, req: SocialRequest, cursor: Optional[str] = None
+    ) -> Tuple[SocialResponse, Optional[str]]:
+        """Algolia pages through results natively via the `page` param."""
+        if req.query_type not in (SocialQueryType.posts, SocialQueryType.search):
+            return await super().fetch_page(req, cursor)
+
+        page = int(cursor) if cursor else 0
+        if req.query_type == SocialQueryType.posts:
+            path = "search"
+            if req.options.get("by_user"):
+                params = {"tags": f"story,author_{req.identifier}", "hitsPerPage": req.limit}
+            else:
+                params = {"tags": "front_page", "hitsPerPage": req.limit}
+        else:
+            path = "search_by_date" if req.options.get("sort") == "date" else "search"
+            params = {"query": req.identifier, "tags": "story", "hitsPerPage": req.limit}
+        params["page"] = page
+
+        data = await self._get(path, params)
+        hits = data.get("hits", [])
+        resp = self.ok(posts=[self._to_post(h) for h in hits], data=hits, source="hn_algolia")
+        resp.query_type = req.query_type.value
+        has_more = hits and page + 1 < (data.get("nbPages") or 0)
+        return resp, str(page + 1) if has_more else None
 
     # --- helpers ---
 
