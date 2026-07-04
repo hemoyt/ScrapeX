@@ -1,0 +1,13 @@
+# Nixpacks config — used when a platform (Coolify, Railway, ...) builds this
+# repo with Nixpacks instead of the Dockerfile. Gives the Python provider the
+# start command it can't infer for a FastAPI app.
+#
+# NOTE: the Dockerfile build is the recommended path — it also installs the
+# Playwright browser used for JS rendering and the TikTok fallback. Nixpacks
+# builds run fine without it; those two features just degrade gracefully.
+
+[variables]
+NIXPACKS_PYTHON_VERSION = "3.11"
+
+[start]
+cmd = "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
