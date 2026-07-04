@@ -109,6 +109,7 @@ class ScrapeX:
         query_type: str = "posts",
         identifier: str = "",
         limit: int = 10,
+        clean: bool = False,
         **options,
     ) -> Dict[str, Any]:
         """Unified social scraping.
@@ -119,6 +120,7 @@ class ScrapeX:
         identifier: username / URL / search query, depending on query_type
         options:    platform extras, e.g. listing="top" (reddit),
                     instance="fosstodon.org" (mastodon)
+        clean:      tidy the output and add an AI summary (needs a provider)
         """
         resp = self.client.post(
             f"{self.base_url}/api/v1/social/{platform}",
@@ -127,6 +129,7 @@ class ScrapeX:
                 "identifier": identifier,
                 "limit": limit,
                 "options": options,
+                "clean": clean,
             },
         )
         resp.raise_for_status()
@@ -137,9 +140,11 @@ class ScrapeX:
         query: str,
         platforms: Optional[List[str]] = None,
         limit: int = 5,
+        clean: bool = False,
     ) -> Dict[str, Any]:
-        """Search one keyword across multiple social platforms at once."""
-        payload: Dict[str, Any] = {"query": query, "limit": limit}
+        """Search one keyword across multiple social platforms at once.
+        clean=True tidies results and adds one AI summary across platforms."""
+        payload: Dict[str, Any] = {"query": query, "limit": limit, "clean": clean}
         if platforms:
             payload["platforms"] = platforms
         resp = self.client.post(f"{self.base_url}/api/v1/social/search", json=payload)
@@ -167,10 +172,12 @@ class ScrapeX:
         query_type: str = "posts",
         identifier: str = "",
         max_items: int = 100,
+        clean: bool = False,
         **options,
     ) -> Dict[str, Any]:
         """Start a dataset run: paginates the platform in the background until
-        max_items are collected or the server's time budget runs out."""
+        max_items are collected or the server's time budget runs out.
+        clean=True tidies every item and adds an AI summary of the dataset."""
         resp = self.client.post(
             f"{self.base_url}/api/v1/runs",
             json={
@@ -179,6 +186,7 @@ class ScrapeX:
                 "identifier": identifier,
                 "max_items": max_items,
                 "options": options,
+                "clean": clean,
             },
         )
         resp.raise_for_status()

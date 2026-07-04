@@ -188,7 +188,12 @@ async def execute_run(run_id: str) -> None:
                     run.error = resp.error or f"{run.platform} returned status={resp.status}"
                 break
 
-            added = dataset.push(_items_from_response(resp), run.max_items)
+            items = _items_from_response(resp)
+            if req.clean:
+                from app.services.ai_cleaner import tidy_item
+
+                items = [tidy_item(i) for i in items]
+            added = dataset.push(items, run.max_items)
             run.item_count = len(dataset.items)
             empty_pages = empty_pages + 1 if added == 0 else 0
 
@@ -205,5 +210,14 @@ async def execute_run(run_id: str) -> None:
         run.error = f"{type(e).__name__}: {e}"
 
     run.item_count = len(dataset.items)
+
+    if req.clean and dataset.items:
+        from app.services.ai_cleaner import summarize_items
+
+        try:
+            run.summary = await summarize_items(run.platform, run.identifier, dataset.items)
+        except Exception:
+            run.summary = None  # a failed summary never fails the run
+
     run.finished_at = _now_iso()
     run.duration_seconds = round(time.monotonic() - started, 2)

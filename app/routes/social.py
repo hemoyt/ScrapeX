@@ -21,6 +21,18 @@ router = APIRouter()
 # registered before the dynamic /{platform} route.
 
 
+async def _finalize(resp: SocialResponse, clean: bool, context: str) -> SocialResponse:
+    """Shared clean pipeline: tidy the output and pass it through the AI for a
+    summary before it goes out. Copies first — the cache holds the raw version."""
+    if not clean:
+        return resp
+    from app.services.ai_cleaner import summarize_response, tidy_response
+
+    resp = tidy_response(resp.model_copy(deep=True))
+    resp.summary = await summarize_response(resp, context)
+    return resp
+
+
 @router.post("/search", response_model=MultiSearchResponse)
 async def social_search(req: MultiSearchRequest):
     """Search one keyword across multiple social platforms concurrently."""
@@ -55,9 +67,18 @@ async def social_search(req: MultiSearchRequest):
 
     responses = await asyncio.gather(*(run_one(p) for p in valid))
     results = {p.lower(): r for p, r in zip(valid, responses)}
+
+    summary = None
+    if req.clean:
+        from app.services.ai_cleaner import summarize_multi, tidy_response
+
+        results = {p: tidy_response(r.model_copy(deep=True)) for p, r in results.items()}
+        summary = await summarize_multi(req.query, results)
+
     return MultiSearchResponse(
         success=any(r.success for r in results.values()),
         query=req.query,
+        summary=summary,
         results=results,
     )
 
@@ -83,7 +104,8 @@ async def scrape_twitter(req: TwitterRequest):
         )
     else:
         raise HTTPException(status_code=400, detail="Provide either username, tweet_url, or identifier")
-    return await get_platform("twitter").fetch(unified)
+    resp = await get_platform("twitter").fetch(unified)
+    return await _finalize(resp, req.clean, unified.identifier)
 
 
 @router.post("/reddit", response_model=SocialResponse)
@@ -107,7 +129,8 @@ async def scrape_reddit(req: RedditRequest):
         )
     else:
         raise HTTPException(status_code=400, detail="Provide either subreddit, post_url, or identifier")
-    return await get_platform("reddit").fetch(unified)
+    resp = await get_platform("reddit").fetch(unified)
+    return await _finalize(resp, req.clean, unified.identifier)
 
 
 # --- Unified endpoint ---
@@ -115,7 +138,11 @@ async def scrape_reddit(req: RedditRequest):
 
 @router.post("/{platform}", response_model=SocialResponse)
 async def social_unified(platform: str, req: SocialRequest):
-    """Unified social scraping: profile, posts, single post, or search on any platform."""
+    """Unified social scraping: profile, posts, single post, or search on any platform.
+
+    With clean=true the response is tidied (HTML noise stripped, raw payloads
+    dropped) and — when an AI provider is configured — passed through the AI
+    for a plain-language `summary` before it comes back."""
     try:
         svc = get_platform(platform)
     except KeyError:
@@ -123,4 +150,5 @@ async def social_unified(platform: str, req: SocialRequest):
             status_code=404,
             detail=f"Unknown platform '{platform}'. Available: {platform_names()}",
         )
-    return await svc.fetch(req)
+    resp = await svc.fetch(req)
+    return await _finalize(resp, req.clean, req.identifier)

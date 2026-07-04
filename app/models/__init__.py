@@ -71,6 +71,7 @@ class TwitterRequest(BaseModel):
     identifier: Optional[str] = None
     limit: int = Field(default=10, ge=1, le=50)
     options: Dict[str, Any] = {}
+    clean: bool = False
 
 
 class RedditRequest(BaseModel):
@@ -83,6 +84,7 @@ class RedditRequest(BaseModel):
     query_type: Optional[str] = None
     identifier: Optional[str] = None
     options: Dict[str, Any] = {}
+    clean: bool = False
 
 
 class SocialQueryType(str, Enum):
@@ -105,6 +107,10 @@ class SocialRequest(BaseModel):
     options: Dict[str, Any] = Field(
         default_factory=dict,
         description="Platform extras, e.g. {'listing': 'top'} for reddit, {'instance': 'fosstodon.org'} for mastodon",
+    )
+    clean: bool = Field(
+        default=False,
+        description="Tidy the output (strip HTML noise, drop raw payloads) and, when an AI provider is configured, add a plain-language summary",
     )
 
 
@@ -141,6 +147,7 @@ class SocialResponse(BaseModel):
     posts: List[SocialPost] = []
     data: List[Dict[str, Any]] = []     # legacy/raw payloads (kept for back-compat)
     source: Optional[str] = None        # strategy that served it, e.g. "fxtwitter", "innertube"
+    summary: Optional[str] = None       # plain-language AI summary (only when clean=true and AI is configured)
     cached: bool = False
     error: Optional[str] = None
 
@@ -149,11 +156,13 @@ class MultiSearchRequest(BaseModel):
     query: str
     platforms: List[str] = ["reddit", "bluesky", "hackernews", "youtube", "mastodon"]
     limit: int = Field(default=5, ge=1, le=20)
+    clean: bool = Field(default=False, description="Tidy results and add one AI summary across all platforms")
 
 
 class MultiSearchResponse(BaseModel):
     success: bool
     query: str
+    summary: Optional[str] = None       # cross-platform AI summary (clean=true + AI configured)
     results: Dict[str, SocialResponse]  # keyed by platform, includes per-platform failures
 
 
@@ -182,6 +191,10 @@ class RunRequest(BaseModel):
     identifier: str = Field(..., description="Username/handle, URL, or search query")
     max_items: int = Field(default=100, ge=1, le=5000, description="Stop after this many items")
     options: Dict[str, Any] = Field(default_factory=dict)
+    clean: bool = Field(
+        default=False,
+        description="Tidy every item as it's collected and add an AI summary of the dataset at the end",
+    )
 
 
 class RunInfo(BaseModel):
@@ -199,6 +212,7 @@ class RunInfo(BaseModel):
     duration_seconds: Optional[float] = None
     source: Optional[str] = None        # strategy that served the pages
     status_detail: Optional[str] = None # last platform status (ok/partial/...) or note
+    summary: Optional[str] = None       # AI summary of the dataset (clean=true + AI configured)
     error: Optional[str] = None
 
 

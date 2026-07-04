@@ -187,6 +187,22 @@ SCRAPEX_AI_API_KEY=sk-ant-...
 
 They all speak the OpenAI chat-completions dialect, so one client covers every row. `GET /health` shows which brain is currently plugged in (`"ai": {"provider": ..., "model": ..., "enabled": ...}`) — the web UI displays it in the header. The old `SCRAPEX_OPENROUTER_API_KEY` still works unchanged.
 
+### Clean output — pass results through the AI before they come out
+
+Add `"clean": true` to any `/social/{platform}` call, `/social/search`, or a dataset run and the output goes through a two-stage pipeline before it reaches you:
+
+1. **Tidy (always, no AI needed)** — leftover HTML stripped, whitespace collapsed, runaway text capped, empty fields and the noisy raw `data[]` payloads dropped. What's left is just readable posts and profiles.
+2. **AI pass (when a provider is configured)** — the tidied content is summarized into a plain-language `summary`: 3–5 bullets of what the posts are saying, a 2-sentence profile description, or an overview of a whole dataset run. In `/social/search` you get **one summary across all platforms**.
+
+```bash
+curl -X POST localhost:8000/api/v1/social/reddit \
+  -H 'Content-Type: application/json' \
+  -d '{"query_type": "posts", "identifier": "python", "limit": 10, "clean": true}'
+# -> posts are tidy, data[] is empty, and "summary" reads like a human wrote it
+```
+
+No provider configured? `clean` still tidies everything — `summary` is simply `null`. A failed summary never breaks a scrape. In the Store, every card has an **AI clean** toggle that does the same thing.
+
 ### What computer can run it?
 
 ScrapeX itself is featherweight — the heavy question is only the **local** LLM, if you choose one:
@@ -340,6 +356,7 @@ profile = client.social("bluesky", "profile", "bsky.app")
 videos  = client.social("youtube", "posts", "@mkbhd", limit=5)
 tweet   = client.social("twitter", "post", "https://x.com/jack/status/20")
 top     = client.social("reddit", "posts", "python", listing="top")
+tidy    = client.social("reddit", "posts", "python", clean=True)  # tidy + AI summary
 
 # Profile Finder — one username, every platform
 who = client.find_profiles("mkbhd")
@@ -413,7 +430,7 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-pytest -q                              # 93 tests, no network needed
+pytest -q                              # 101 tests, no network needed
 python scripts/verify_platforms.py    # live smoke test from YOUR egress IP
 uvicorn app.main:app --reload
 ```
