@@ -73,6 +73,26 @@ Returns `{answer, sources[], steps[], usage, status}`. The `steps` array is a fu
 
 ---
 
+## 🖥️ Deploy on your own VPS
+
+**Coolify** (or any Nixpacks platform like Railway):
+
+1. New Resource → **Public Repository** → paste `https://github.com/hemoyt/ScrapeX`
+2. **Build Pack:** pick **Dockerfile** (recommended — includes the Playwright browser for JS rendering & the TikTok fallback). Nixpacks also works now: the repo ships a `Procfile` + `nixpacks.toml` with the right start command.
+3. **Ports Exposes:** set to **`8000`** — this is the step everyone misses. ScrapeX listens on 8000; if the proxy points at the default 3000 you'll get Traefik's `404 page not found` even though the deploy says Finished.
+4. Deploy, then open the domain → the web UI is at `/`, docs at `/docs`, health at `/health`.
+
+Set your env vars (`SCRAPEX_AI_PROVIDER`, `SCRAPEX_AI_API_KEY`, `SCRAPEX_API_KEYS`…) in the platform's Environment tab. If you're exposing the API publicly, set `SCRAPEX_API_KEYS` so auth is enforced.
+
+**Plain Docker on any VPS:**
+
+```bash
+git clone https://github.com/hemoyt/ScrapeX.git && cd ScrapeX
+docker compose up -d          # listens on :8000
+```
+
+---
+
 ## 📦 Runs & Datasets — get ALL the data (Apify-style)
 
 The sync `/social` endpoints are built for speed: one page, `limit ≤ 50`, one HTTP request. That's the wrong shape when you want *everything* — a full subreddit listing, 500 HN hits, a whole Bluesky feed. **Runs** fix the limited-time problem the same way Apify does:
