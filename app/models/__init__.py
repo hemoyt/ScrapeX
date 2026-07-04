@@ -169,6 +169,30 @@ class HealthResponse(BaseModel):
     timestamp: str
 
 
+class CompetitorRequest(BaseModel):
+    product: str = Field(..., description="Your product/company name (optionally with a short descriptor)")
+    max_competitors: int = Field(default=5, ge=1, le=10)
+    enrich: bool = Field(default=True, description="Pull social profiles and mentions for each competitor")
+
+
+class Competitor(BaseModel):
+    name: str
+    website: Optional[str] = None
+    description: Optional[str] = None
+    handles: Dict[str, str] = {}                 # e.g. {"twitter": "vercel", "youtube": "@vercel"}
+    profiles: Dict[str, SocialProfile] = {}      # platform -> profile (enrichment)
+    mentions: Dict[str, List[SocialPost]] = {}   # platform -> recent posts mentioning them
+
+
+class CompetitorResponse(BaseModel):
+    success: bool
+    product: str
+    competitors: List[Competitor] = []
+    sources: List[Dict[str, Any]] = []           # web results the discovery was grounded on
+    status: str = "ok"                           # ok | partial | no_llm | error
+    error: Optional[str] = None
+
+
 class AgentRequest(BaseModel):
     query: str = Field(..., description="Natural-language research question")
     depth: str = Field(default="basic", pattern="^(basic|advanced)$")

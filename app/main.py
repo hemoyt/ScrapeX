@@ -1,15 +1,17 @@
 """ScrapeX — AI Super Agent for Web & Social Media Scraping."""
+from pathlib import Path
+
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.auth import require_api_key
 from app.config import settings
 from app.ratelimit import limiter
-from app.routes import scrape, social, extract, health, agent
+from app.routes import scrape, social, extract, health, agent, competitors
 
 app = FastAPI(
     title="ScrapeX",
@@ -53,6 +55,10 @@ app.include_router(
     agent.router, prefix="/api/v1", tags=["Research Agent"],
     dependencies=[Depends(require_api_key)],
 )
+app.include_router(
+    competitors.router, prefix="/api/v1", tags=["Competitors"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 @app.exception_handler(RateLimitExceeded)
@@ -87,13 +93,27 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.get("/")
+_STATIC_DIR = Path(__file__).parent / "static"
+
+
+@app.get("/", include_in_schema=False)
 @limiter.exempt
 async def root():
+    """Built-in web UI."""
+    index = _STATIC_DIR / "index.html"
+    if index.exists():
+        return FileResponse(index)
+    return {"name": "ScrapeX", "docs": "/docs", "api": "/api"}
+
+
+@app.get("/api")
+@limiter.exempt
+async def api_index():
     return {
         "name": "ScrapeX",
         "version": settings.app_version,
         "docs": "/docs",
+        "ui": "/",
         "endpoints": {
             "scrape": "/api/v1/scrape",
             "crawl": "/api/v1/crawl",
@@ -102,5 +122,6 @@ async def root():
             "social": "/api/v1/social/{platform}",
             "social_search": "/api/v1/social/search",
             "agent": "/api/v1/agent",
+            "competitors": "/api/v1/competitors",
         },
     }

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ScrapeX — Web &amp; Social Research</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --border: #2d333b;
+    --ink: #e6edf3; --ink-2: #9aa4b2; --ink-3: #6e7681;
+    --accent: #e8a33d; --accent-ink: #1a1205;
+    --good: #3fb950; --warn: #d29922; --bad: #f85149; --info: #58a6ff;
+    --radius: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink); min-height: 100vh;
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+  }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header {
+    display: flex; align-items: center; gap: 20px; padding: 14px 24px;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0;
+    background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); z-index: 10;
+  }
+  .logo { font-weight: 700; font-size: 17px; letter-spacing: .2px; white-space: nowrap; }
+  nav { display: flex; gap: 4px; flex: 1; }
+  nav button {
+    background: none; border: 0; color: var(--ink-2); font: inherit; font-weight: 500;
+    padding: 7px 14px; border-radius: 8px; cursor: pointer;
+  }
+  nav button:hover { color: var(--ink); background: var(--surface-2); }
+  nav button.active { color: var(--ink); background: var(--surface-2); }
+  .hstatus { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
+  .dot.ok { background: var(--good); } .dot.bad { background: var(--bad); }
+  .keybtn {
+    background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .keybtn:hover { color: var(--ink); }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
+  section[hidden] { display: none; }
+  h1 { font-size: 22px; margin-bottom: 6px; }
+  .sub { color: var(--ink-2); margin-bottom: 22px; }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  input[type=text], textarea, select {
+    background: var(--surface); color: var(--ink); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 14px; font: inherit; outline: none;
+  }
+  input[type=text]:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  textarea { width: 100%; resize: vertical; font-family: var(--mono); font-size: 13px; }
+  .grow { flex: 1; min-width: 220px; }
+  label.check { display: flex; gap: 7px; align-items: center; color: var(--ink-2); font-size: 14px; cursor: pointer; }
+  .btn {
+    background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 600;
+    border: 0; border-radius: var(--radius); padding: 10px 20px; cursor: pointer; white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:disabled { opacity: .55; cursor: wait; }
+  .btn.ghost { background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); }
+
+  .banner {
+    display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border);
+    border-left: 3px solid var(--warn); background: var(--surface); border-radius: var(--radius);
+    padding: 12px 16px; margin: 16px 0; color: var(--ink-2); font-size: 14px;
+  }
+  .banner.err { border-left-color: var(--bad); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 20px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .card h3 { font-size: 16px; }
+  .card .desc { color: var(--ink-2); font-size: 14px; }
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; min-width: 96px;
+  }
+  .stat .v { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 12px; color: var(--ink-3); }
+  .mentions h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-3); margin: 8px 0 6px; }
+  .mention { font-size: 13.5px; padding: 6px 0; border-top: 1px solid var(--border); }
+  .mention .meta { color: var(--ink-3); font-size: 12px; }
+
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 9px;
+          border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-2); }
+  .chip.ok { color: var(--good); } .chip.partial { color: var(--warn); }
+  .chip.blocked, .chip.error, .chip.no_llm { color: var(--bad); }
+
+  .answer {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; margin-top: 18px; overflow-wrap: anywhere;
+  }
+  .answer h2, .answer h3 { margin: 14px 0 8px; } .answer p { margin: 8px 0; }
+  .answer ul, .answer ol { margin: 8px 0 8px 22px; }
+  .answer code { font-family: var(--mono); font-size: 13px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+  .answer pre { background: var(--surface-2); padding: 12px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+  .answer sup a { color: var(--accent); font-weight: 600; }
+  .sources { margin-top: 14px; }
+  .source { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; }
+  .source .n { color: var(--accent); font-weight: 700; font-family: var(--mono); }
+  .source .plat { color: var(--ink-3); font-size: 12px; }
+  details { margin-top: 14px; color: var(--ink-2); }
+  details summary { cursor: pointer; font-size: 14px; }
+  .step { font-family: var(--mono); font-size: 12.5px; padding: 6px 0; border-top: 1px solid var(--border); }
+
+  .out {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-top: 16px; font-family: var(--mono); font-size: 12.5px;
+    white-space: pre-wrap; overflow-x: auto; max-height: 560px; overflow-y: auto;
+  }
+  .outmeta { margin-top: 14px; font-size: 13px; color: var(--ink-2); display: flex; gap: 14px; }
+
+  .cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 18px; }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--accent-ink);
+          border-top-color: transparent; border-radius: 50%; animation: sp .7s linear infinite; vertical-align: -2px; margin-right: 7px; }
+  .btn.ghost .spin { border-color: var(--ink); border-top-color: transparent; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .muted { color: var(--ink-3); font-size: 13px; }
+  .divider { border: 0; border-top: 1px solid var(--border); margin: 34px 0 26px; }
+  h2.secttl { font-size: 17px; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🦅 ScrapeX</div>
+  <nav id="tabs">
+    <button data-tab="competitors" class="active">Competitors</button>
+    <button data-tab="research">Research</button>
+    <button data-tab="playground">Playground</button>
+  </nav>
+  <div class="hstatus"><span class="dot" id="hdot"></span><span id="htext">checking…</span></div>
+  <button class="keybtn" id="keybtn" title="Set the API key sent as X-API-Key (only needed if SCRAPEX_API_KEYS is configured)">API key</button>
+</header>
+
+<main>
+
+  <!-- ============ COMPETITORS ============ -->
+  <section id="tab-competitors">
+    <h1>Competitor watch</h1>
+    <p class="sub">Type your product — AI finds the competitors, then ScrapeX pulls their social profiles and what Reddit &amp; Hacker News are saying about them.</p>
+
+    <div class="row">
+      <input type="text" id="c-product" class="grow" placeholder="Your product, e.g. &quot;Notion (note-taking app)&quot;" >
+      <select id="c-count"><option>3</option><option selected>5</option><option>8</option></select>
+      <label class="check"><input type="checkbox" id="c-enrich" checked> pull socials &amp; mentions</label>
+      <button class="btn" id="c-go">Find competitors</button>
+    </div>
+    <div id="c-out"></div>
+
+    <hr class="divider">
+    <h2 class="secttl">Track mentions of anything</h2>
+    <p class="sub">One keyword, searched across platforms at once.</p>
+    <div class="row">
+      <input type="text" id="m-query" class="grow" placeholder="Brand, product, or topic — e.g. &quot;scrapex&quot;">
+      <button class="btn ghost" id="m-go">Search platforms</button>
+    </div>
+    <div class="row" style="margin-top:10px" id="m-platforms">
+      <label class="check"><input type="checkbox" value="reddit" checked> Reddit</label>
+      <label class="check"><input type="checkbox" value="hackernews" checked> Hacker News</label>
+      <label class="check"><input type="checkbox" value="bluesky" checked> Bluesky</label>
+      <label class="check"><input type="checkbox" value="youtube" checked> YouTube</label>
+      <label class="check"><input type="checkbox" value="mastodon"> Mastodon</label>
+      <label class="check"><input type="checkbox" value="twitter"> Twitter/X</label>
+    </div>
+    <div id="m-out"></div>
+  </section>
+
+  <!-- ============ RESEARCH ============ -->
+  <section id="tab-research" hidden>
+    <h1>Research agent</h1>
+    <p class="sub">Ask anything — the agent searches the web and social platforms, reads pages, and answers with citations you can verify.</p>
+
+    <textarea id="r-query" rows="3" style="font-family:inherit;font-size:15px" placeholder="e.g. What are developers saying about local LLMs this month?"></textarea>
+    <div class="row" style="margin-top:10px">
+      <select id="r-depth">
+        <option value="basic" selected>Basic (fast, up to 3 steps)</option>
+        <option value="advanced">Advanced (thorough)</option>
+      </select>
+      <label class="check"><input type="checkbox" id="r-social" checked> use social platforms</label>
+      <span class="grow"></span>
+      <button class="btn" id="r-go">Research</button>
+    </div>
+    <div id="r-out"></div>
+  </section>
+
+  <!-- ============ PLAYGROUND ============ -->
+  <section id="tab-playground" hidden>
+    <h1>API playground</h1>
+    <p class="sub">Try any endpoint and see the raw JSON. Full docs at <a href="/docs" target="_blank">/docs</a>.</p>
+
+    <div class="row">
+      <select id="p-endpoint" class="grow"></select>
+      <button class="btn" id="p-go">Send</button>
+    </div>
+    <textarea id="p-body" rows="8" style="margin-top:10px" spellcheck="false"></textarea>
+    <div class="outmeta" id="p-meta" hidden></div>
+    <div class="out" id="p-out" hidden></div>
+  </section>
+
+</main>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (n) => n == null ? "—" : n >= 1e9 ? (n/1e9).toFixed(1)+"B" : n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : String(n);
+const STATUS_ICON = { ok: "✓", partial: "◐", blocked: "⛔", error: "✕", no_llm: "⚡" };
+const chip = (status) => `<span class="chip ${esc(status)}">${STATUS_ICON[status] || "•"} ${esc(status)}</span>`;
+
+/* ---------- api helper ---------- */
+async function api(path, body, method = "POST") {
+  const headers = { "Content-Type": "application/json" };
+  const key = localStorage.getItem("scrapex_key");
+  if (key) headers["X-API-Key"] = key;
+  const t0 = performance.now();
+  const resp = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const ms = Math.round(performance.now() - t0);
+  let data; try { data = await resp.json(); } catch { data = { error: "non-JSON response" }; }
+  return { status: resp.status, ms, data };
+}
+function busy(btn, on, label) {
+  btn.disabled = on;
+  if (on) { btn.dataset.txt = btn.textContent; btn.innerHTML = `<span class="spin"></span>${label || "Working…"}`; }
+  else btn.textContent = btn.dataset.txt;
+}
+const keyBanner = (err) => `<div class="banner">⚡ <div><strong>AI features need a key.</strong> Add <code>SCRAPEX_OPENROUTER_API_KEY</code> to your <code>.env</code> (free at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>) and restart.<br><span class="muted">${esc(err || "")}</span></div></div>`;
+const errBanner = (msg) => `<div class="banner err">✕ <div>${esc(msg || "Request failed")}</div></div>`;
+
+/* ---------- tiny markdown (headings, bold, code, lists, links, [n] cites) ---------- */
+function md(text, nSources) {
+  let h = esc(text);
+  h = h.replace(/```([\s\S]*?)```/g, (_, c) => `<pre>${c}</pre>`);
+  h = h.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  h = h.replace(/^### (.*)$/gm, "<h3>$1</h3>").replace(/^## (.*)$/gm, "<h2>$1</h2>").replace(/^# (.*)$/gm, "<h2>$1</h2>");
+  h = h.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  h = h.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+  h = h.replace(/\[(\d{1,2})\]/g, (m, n) => +n <= nSources ? `<sup><a href="#src-${n}">[${n}]</a></sup>` : m);
+  const lines = h.split("\n"); let out = [], inList = false;
+  for (const line of lines) {
+    const li = line.match(/^\s*[-*] (.*)$/);
+    if (li) { if (!inList) { out.push("<ul>"); inList = true; } out.push(`<li>${li[1]}</li>`); }
+    else {
+      if (inList) { out.push("</ul>"); inList = false; }
+      if (line.trim() === "") out.push("");
+      else if (/^<(h\d|pre|ul)/.test(line.trim())) out.push(line);
+      else out.push(`<p>${line}</p>`);
+    }
+  }
+  if (inList) out.push("</ul>");
+  return out.join("\n");
+}
+
+/* ---------- tabs ---------- */
+$("#tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest("button"); if (!btn) return;
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b === btn));
+  document.querySelectorAll("main > section").forEach(s => s.hidden = s.id !== "tab-" + btn.dataset.tab);
+});
+
+/* ---------- health ---------- */
+(async () => {
+  try {
+    const { data } = await api("/health", null, "GET");
+    $("#hdot").className = "dot ok";
+    $("#htext").textContent = `v${data.version} · ${Object.keys(data.platforms || {}).length} platforms`;
+  } catch { $("#hdot").className = "dot bad"; $("#htext").textContent = "offline"; }
+})();
+
+/* ---------- api key ---------- */
+$("#keybtn").onclick = () => {
+  const cur = localStorage.getItem("scrapex_key") || "";
+  const v = prompt("API key (sent as X-API-Key). Leave empty to clear — only needed when the server sets SCRAPEX_API_KEYS.", cur);
+  if (v === null) return;
+  v ? localStorage.setItem("scrapex_key", v) : localStorage.removeItem("scrapex_key");
+};
+
+/* ============ COMPETITORS ============ */
+function postHtml(p, showPlatform) {
+  const stats = Object.entries(p.stats || {}).slice(0, 3).map(([k, v]) => `${fmt(v)} ${k}`).join(" · ");
+  const when = p.created_at ? esc(String(p.created_at).slice(0, 10)) : "";
+  return `<div class="mention">
+    <a href="${esc(p.url || "#")}" target="_blank">${esc((p.text || "(no text)").slice(0, 120))}</a>
+    <div class="meta">${p.author ? "@" + esc(p.author) + " · " : ""}${stats}${when ? " · " + when : ""}</div>
+  </div>`;
+}
+
+$("#c-go").onclick = async () => {
+  const product = $("#c-product").value.trim();
+  if (!product) return $("#c-product").focus();
+  busy($("#c-go"), true, "Discovering… (can take ~30s)");
+  $("#c-out").innerHTML = "";
+  try {
+    const { status, data } = await api("/api/v1/competitors", {
+      product, max_competitors: +$("#c-count").value, enrich: $("#c-enrich").checked,
+    });
+    if (data.status === "no_llm") { $("#c-out").innerHTML = keyBanner(data.error); return; }
+    if (!data.success) { $("#c-out").innerHTML = errBanner(data.error || `HTTP ${status}`); return; }
+    if (!data.competitors.length) { $("#c-out").innerHTML = errBanner("No competitors identified — try adding a short descriptor, e.g. \"Acme (email client)\""); return; }
+
+    $("#c-out").innerHTML = `<div class="cards">` + data.competitors.map(c => {
+      const tiles = [];
+      if (c.profiles?.twitter) tiles.push(`<div class="stat"><div class="v">${fmt(c.profiles.twitter.followers)}</div><div class="k">X followers</div></div>`);
+      if (c.profiles?.youtube) tiles.push(`<div class="stat"><div class="v">${fmt(c.profiles.youtube.followers)}</div><div class="k">YT subscribers</div></div>`);
+      const reddit = (c.mentions?.reddit || []).map(p => postHtml(p)).join("");
+      const hn = (c.mentions?.hackernews || []).map(p => postHtml(p)).join("");
+      return `<div class="card">
+        <div class="row" style="justify-content:space-between">
+          <h3>${esc(c.name)}</h3>
+          ${c.website ? `<a href="${esc(c.website)}" target="_blank" class="muted">${esc(c.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a>` : ""}
+        </div>
+        ${c.description ? `<div class="desc">${esc(c.description)}</div>` : ""}
+        ${tiles.length ? `<div class="stats">${tiles.join("")}</div>` : ""}
+        <div class="mentions">
+          ${reddit ? `<h4>Reddit is saying</h4>${reddit}` : ""}
+          ${hn ? `<h4>Hacker News is saying</h4>${hn}` : ""}
+          ${!reddit && !hn && $("#c-enrich").checked ? `<div class="muted">No recent mentions found.</div>` : ""}
+        </div>
+      </div>`;
+    }).join("") + `</div>
+    <details><summary>Grounding sources (${data.sources.length})</summary>
+      ${data.sources.map(s => `<div class="step"><a href="${esc(s.url)}" target="_blank">${esc(s.title)}</a></div>`).join("")}
+    </details>`;
+  } catch (e) { $("#c-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#c-go"), false); }
+};
+
+$("#m-go").onclick = async () => {
+  const query = $("#m-query").value.trim();
+  if (!query) return $("#m-query").focus();
+  const platforms = [...document.querySelectorAll("#m-platforms input:checked")].map(i => i.value);
+  busy($("#m-go"), true, "Searching…");
+  $("#m-out").innerHTML = "";
+  try {
+    const { data } = await api("/api/v1/social/search", { query, platforms, limit: 5 });
+    $("#m-out").innerHTML = `<div class="cols">` + Object.entries(data.results || {}).map(([plat, r]) => `
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><h3>${esc(plat)}</h3>${chip(r.status)}</div>
+        ${r.posts?.length ? r.posts.map(p => postHtml(p)).join("") : `<div class="muted">${esc(r.error || "No results")}</div>`}
+      </div>`).join("") + `</div>`;
+  } catch (e) { $("#m-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#m-go"), false); }
+};
+
+/* ============ RESEARCH ============ */
+$("#r-go").onclick = async () => {
+  const query = $("#r-query").value.trim();
+  if (!query) return $("#r-query").focus();
+  busy($("#r-go"), true, "Researching…");
+  $("#r-out").innerHTML = "";
+  try {
+    const { data } = await api("/api/v1/agent", {
+      query, depth: $("#r-depth").value, include_social: $("#r-social").checked, max_sources: 8,
+    });
+    let html = "";
+    if (data.status === "no_llm") html += keyBanner(data.error);
+    else if (!data.success) html += errBanner(data.error);
+    if (data.answer) html += `<div class="answer">${md(data.answer, data.sources.length)}</div>`;
+    if (data.sources?.length) {
+      html += `<div class="sources answer"><strong>Sources</strong>` + data.sources.map(s => `
+        <div class="source" id="src-${s.id}">
+          <span class="n">[${s.id}]</span>
+          <div><a href="${esc(s.url)}" target="_blank">${esc(s.title || s.url)}</a>
+            <span class="plat">${esc(s.platform)}</span>
+            ${s.snippet ? `<div class="muted">${esc(s.snippet.slice(0, 140))}</div>` : ""}
+          </div>
+        </div>`).join("") + `</div>`;
+    }
+    if (data.steps?.length) {
+      html += `<details><summary>Agent trace — ${data.steps.length} tool call(s), ${data.usage?.llm_calls || 0} LLM call(s)</summary>`
+        + data.steps.map(s => `<div class="step">step ${s.step} · <strong>${esc(s.tool)}</strong>(${esc(JSON.stringify(s.args))})</div>`).join("")
+        + `</details>`;
+    }
+    $("#r-out").innerHTML = html || errBanner("Empty response");
+  } catch (e) { $("#r-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#r-go"), false); }
+};
+
+/* ============ PLAYGROUND ============ */
+const ENDPOINTS = [
+  ["POST /api/v1/agent — research agent", "/api/v1/agent", { query: "What is ScrapeX?", depth: "basic", include_social: true }],
+  ["POST /api/v1/competitors — competitor discovery", "/api/v1/competitors", { product: "Notion (note-taking app)", max_competitors: 5, enrich: true }],
+  ["POST /api/v1/social/search — multi-platform search", "/api/v1/social/search", { query: "ai agents", platforms: ["reddit", "hackernews", "bluesky"], limit: 5 }],
+  ["POST /api/v1/social/youtube — channel videos", "/api/v1/social/youtube", { query_type: "posts", identifier: "@mkbhd", limit: 5 }],
+  ["POST /api/v1/social/twitter — single tweet", "/api/v1/social/twitter", { query_type: "post", identifier: "https://x.com/jack/status/20" }],
+  ["POST /api/v1/social/bluesky — profile", "/api/v1/social/bluesky", { query_type: "profile", identifier: "bsky.app" }],
+  ["POST /api/v1/social/reddit — subreddit posts", "/api/v1/social/reddit", { query_type: "posts", identifier: "python", limit: 5, options: { listing: "hot" } }],
+  ["POST /api/v1/social/instagram — profile", "/api/v1/social/instagram", { query_type: "profile", identifier: "instagram" }],
+  ["POST /api/v1/social/tiktok — profile", "/api/v1/social/tiktok", { query_type: "profile", identifier: "tiktok" }],
+  ["POST /api/v1/search — web search", "/api/v1/search", { query: "best open source scraping tools", num_results: 5, include_answer: false }],
+  ["POST /api/v1/scrape — scrape a URL", "/api/v1/scrape", { url: "https://books.toscrape.com", render_js: false }],
+  ["POST /api/v1/extract — AI extraction", "/api/v1/extract", { url: "https://books.toscrape.com", prompt: "book titles and prices as a list" }],
+  ["GET /health?probe=true — live platform status", "/health?probe=true", null],
+];
+const sel = $("#p-endpoint");
+ENDPOINTS.forEach(([label], i) => sel.add(new Option(label, i)));
+function loadEndpoint() {
+  const [, , body] = ENDPOINTS[+sel.value];
+  $("#p-body").value = body ? JSON.stringify(body, null, 2) : "";
+  $("#p-body").style.display = body ? "" : "none";
+}
+sel.onchange = loadEndpoint; loadEndpoint();
+
+$("#p-go").onclick = async () => {
+  const [, path, body] = ENDPOINTS[+sel.value];
+  busy($("#p-go"), true, "Sending…");
+  try {
+    let payload = null;
+    if (body) {
+      try { payload = JSON.parse($("#p-body").value); }
+      catch { $("#p-out").hidden = false; $("#p-out").textContent = "Body is not valid JSON."; busy($("#p-go"), false); return; }
+    }
+    const { status, ms, data } = await api(path, payload, body ? "POST" : "GET");
+    $("#p-meta").hidden = false;
+    $("#p-meta").innerHTML = `<span>HTTP ${status}</span><span>${ms} ms</span>` + (data.status ? chip(data.status) : "");
+    $("#p-out").hidden = false;
+    $("#p-out").textContent = JSON.stringify(data, null, 2);
+  } catch (e) { $("#p-out").hidden = false; $("#p-out").textContent = String(e); }
+  finally { busy($("#p-go"), false); }
+};
+
+/* enter-to-submit */
+$("#c-product").addEventListener("keydown", e => e.key === "Enter" && $("#c-go").click());
+$("#m-query").addEventListener("keydown", e => e.key === "Enter" && $("#m-go").click());
+$("#r-query").addEventListener("keydown", e => e.key === "Enter" && !e.shiftKey && ($("#r-go").click(), e.preventDefault()));
+</script>
+</body>
+</html>

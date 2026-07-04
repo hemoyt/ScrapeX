@@ -21,8 +21,14 @@ The pain this solves: getting public web + social data normally means juggling 6
 ```bash
 git clone https://github.com/hemoyt/ScrapeX.git && cd ScrapeX
 docker compose up -d
-# API live at http://localhost:8000 — interactive docs at /docs
+# Web UI at http://localhost:8000 — API docs at /docs
 ```
+
+**Open http://localhost:8000 in your browser** — ScrapeX ships with a built-in UI (no build step, no Node):
+
+- **Competitors** — type your product, AI discovers the competitors and pulls their social profiles + what Reddit/HN are saying about them. Plus a "track mentions" search across platforms.
+- **Research** — ask a question, get a cited answer with sources and the agent's full tool trace.
+- **Playground** — try every API endpoint with editable request bodies and pretty JSON.
 
 ```bash
 # Ask the research agent (needs a free OpenRouter key for answers)
@@ -95,6 +101,8 @@ Every response includes `status` (`ok | partial | blocked | error`), `source` (w
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `GET` | `/` | 🆕 Built-in web UI (competitors, research, playground) |
+| `POST` | `/api/v1/competitors` | 🆕 Discover a product's competitors + their socials & mentions |
 | `POST` | `/api/v1/agent` | 🆕 Research agent → cited answer + sources + trace |
 | `POST` | `/api/v1/social/{platform}` | 🆕 Unified social scraping (10 platforms) |
 | `POST` | `/api/v1/social/search` | 🆕 One keyword across many platforms, concurrently |
@@ -119,6 +127,11 @@ client = ScrapeX(base_url="http://localhost:8000")  # api_key="sx-..." if auth i
 r = client.agent("What are people saying about the latest Claude release?", depth="advanced")
 print(r["answer"])          # markdown with [1][2] citations
 print(r["sources"])         # the URLs behind those citations
+
+# Competitor discovery + analysis
+report = client.competitors("Notion (note-taking app)")
+for c in report["competitors"]:
+    print(c["name"], c["website"], c["profiles"].get("twitter", {}).get("followers"))
 
 # Unified social API
 profile = client.social("bluesky", "profile", "bsky.app")
