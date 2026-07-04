@@ -158,6 +158,12 @@
   .muted { color: var(--ink-3); font-size: 13px; }
   .divider { border: 0; border-top: 1px solid var(--border); margin: 44px 0 32px; }
   h2.secttl { font-family: var(--serif); font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+
+  /* settings form */
+  #tab-settings .card label.muted { display: block; margin: 12px 0 5px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  #tab-settings .card input, #tab-settings .card select { width: 100%; }
+  #tab-settings .card .row { margin-top: 4px; }
+  #tab-settings .card .row input, #tab-settings .card .row button { width: auto; }
 </style>
 </head>
 <body>
@@ -169,6 +175,7 @@
     <button data-tab="store">Store</button>
     <button data-tab="research">Research</button>
     <button data-tab="playground">Playground</button>
+    <button data-tab="settings">Settings</button>
   </nav>
   <div class="hstatus"><span class="dot" id="hdot"></span><span id="htext">checking…</span></div>
   <button class="keybtn" id="keybtn" title="Set the API key sent as X-API-Key (only needed if SCRAPEX_API_KEYS is configured)">API key</button>
@@ -243,6 +250,41 @@
     <div id="r-out"></div>
   </section>
 
+  <!-- ============ SETTINGS ============ -->
+  <section id="tab-settings" hidden>
+    <h1>Settings</h1>
+    <p class="sub">Set your AI provider and API key right here — no server restart, no <code>.env</code> editing. Saved on the server and used for the research agent, competitor discovery, AI extraction, and the <strong>AI clean</strong> summaries.</p>
+
+    <div class="card" style="max-width:640px">
+      <h3>AI provider</h3>
+      <div id="set-current" class="muted">Loading…</div>
+
+      <label class="muted" style="margin-top:6px">Provider</label>
+      <select id="set-provider"></select>
+
+      <label class="muted" id="set-key-label">API key</label>
+      <input type="password" id="set-key" placeholder="Paste your API key">
+      <div class="muted" id="set-key-hint"></div>
+
+      <label class="muted">Model <span id="set-model-def"></span></label>
+      <input type="text" id="set-model" placeholder="Leave blank for the provider default">
+
+      <div id="set-baseurl-wrap" hidden>
+        <label class="muted">Base URL (for custom / self-hosted endpoints)</label>
+        <input type="text" id="set-baseurl" placeholder="http://my-llm-host:8080/v1">
+      </div>
+
+      <div class="row" style="margin-top:14px">
+        <button class="btn" id="set-save">Save</button>
+        <button class="btn ghost" id="set-test">Test connection</button>
+        <button class="btn ghost" id="set-clear" title="Drop these settings and fall back to server environment variables">Reset to env</button>
+      </div>
+      <div id="set-out"></div>
+    </div>
+
+    <p class="muted" style="margin-top:16px;max-width:640px">Local providers (<code>ollama</code>, <code>lmstudio</code>) need no key — just point ScrapeX at them. Your key is stored on the server in <code>.scrapex_settings.json</code> (same trust level as an <code>.env</code> file). If your API is public, set <code>SCRAPEX_API_KEYS</code> so only you can change this.</p>
+  </section>
+
   <!-- ============ PLAYGROUND ============ -->
   <section id="tab-playground" hidden>
     <h1>API playground</h1>
@@ -283,7 +325,7 @@ function busy(btn, on, label) {
   if (on) { btn.dataset.txt = btn.textContent; btn.innerHTML = `<span class="spin"></span>${label || "Working…"}`; }
   else btn.textContent = btn.dataset.txt;
 }
-const keyBanner = (err) => `<div class="banner">⚡ <div><strong>AI features need a provider.</strong> Set <code>SCRAPEX_AI_PROVIDER</code> + <code>SCRAPEX_AI_API_KEY</code> in <code>.env</code> (anthropic, openai, deepseek, xai, openrouter, …) — or run a local one free: <code>SCRAPEX_AI_PROVIDER=ollama</code>. Then restart.<br><span class="muted">${esc(err || "")}</span></div></div>`;
+const keyBanner = (err) => `<div class="banner">⚡ <div><strong>AI features need a provider.</strong> Open the <a href="#" onclick="document.querySelector('#tabs button[data-tab=settings]').click();return false"><strong>Settings</strong></a> tab and add your AI provider + API key (anthropic, openai, deepseek, xai, openrouter, …) — or pick a free local one (ollama). No restart needed.<br><span class="muted">${esc(err || "")}</span></div></div>`;
 const errBanner = (msg) => `<div class="banner err">✕ <div>${esc(msg || "Request failed")}</div></div>`;
 
 /* ---------- tiny markdown (headings, bold, code, lists, links, [n] cites) ---------- */
@@ -315,17 +357,19 @@ $("#tabs").addEventListener("click", (e) => {
   const btn = e.target.closest("button"); if (!btn) return;
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b === btn));
   document.querySelectorAll("main > section").forEach(s => s.hidden = s.id !== "tab-" + btn.dataset.tab);
+  if (btn.dataset.tab === "settings") loadSettings();
 });
 
 /* ---------- health ---------- */
-(async () => {
+async function refreshHealth() {
   try {
     const { data } = await api("/health", null, "GET");
     $("#hdot").className = "dot ok";
     const ai = data.ai ? ` · AI: ${data.ai.enabled ? data.ai.provider : "off"}` : "";
     $("#htext").textContent = `v${data.version} · ${Object.keys(data.platforms || {}).length} platforms${ai}`;
   } catch { $("#hdot").className = "dot bad"; $("#htext").textContent = "offline"; }
-})();
+}
+refreshHealth();
 
 /* ---------- api key ---------- */
 $("#keybtn").onclick = () => {
@@ -576,6 +620,80 @@ $("#pf-go").onclick = async () => {
 };
 $("#pf-user").addEventListener("keydown", e => e.key === "Enter" && $("#pf-go").click());
 
+/* ============ SETTINGS ============ */
+let SET_STATE = null;
+
+function renderSettings(s) {
+  SET_STATE = s;
+  const provSel = $("#set-provider");
+  if (!provSel.options.length) {
+    (s.available_providers || []).forEach(p => provSel.add(new Option(p, p)));
+  }
+  provSel.value = s.provider;
+  const meta = (s.providers || {})[s.provider] || {};
+  // key field
+  $("#set-key-label").textContent = meta.needs_key ? "API key" : "API key (not needed for this provider)";
+  $("#set-key").placeholder = s.api_key_set ? `Saved: ${s.api_key_hint} — type to replace` : (meta.needs_key ? "Paste your API key" : "Not required");
+  $("#set-key").value = "";
+  $("#set-model").value = s.from_ui?.ai_model ? s.model : "";
+  $("#set-model").placeholder = `Default: ${meta.default_model || s.model}`;
+  $("#set-model-def").textContent = "";
+  $("#set-baseurl-wrap").hidden = s.provider !== "custom";
+  $("#set-baseurl").value = s.from_ui?.ai_base_url ? (s.base_url || "") : "";
+  const badge = s.enabled ? chip("ok") : chip("error");
+  $("#set-current").innerHTML = `${badge} <span class="muted">Active: <strong>${esc(s.provider)}</strong> · model <strong>${esc(s.model)}</strong> · ${s.enabled ? "ready" : "no key yet"}</span>`;
+}
+
+async function loadSettings() {
+  try {
+    const { data } = await api("/api/v1/settings/ai", null, "GET");
+    renderSettings(data);
+  } catch (e) { $("#set-current").innerHTML = errBanner(e.message); }
+}
+
+$("#set-provider").onchange = () => {
+  // reflect the new provider's key/model hints without saving yet
+  if (SET_STATE) { const s = { ...SET_STATE, provider: $("#set-provider").value, from_ui: {} }; renderSettings(s); }
+};
+
+$("#set-save").onclick = async () => {
+  const body = { ai_provider: $("#set-provider").value, ai_model: $("#set-model").value.trim() };
+  const key = $("#set-key").value.trim();
+  if (key) body.ai_api_key = key;             // only send when the user typed one
+  if ($("#set-provider").value === "custom") body.ai_base_url = $("#set-baseurl").value.trim();
+  busy($("#set-save"), true, "Saving…");
+  try {
+    const { data } = await api("/api/v1/settings/ai", body);
+    renderSettings(data);
+    $("#set-out").innerHTML = `<div class="banner"><div>✓ Saved. Active provider: <strong>${esc(data.provider)}</strong>.</div></div>`;
+    refreshHealth();
+  } catch (e) { $("#set-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#set-save"), false); }
+};
+
+$("#set-test").onclick = async () => {
+  busy($("#set-test"), true, "Testing…");
+  $("#set-out").innerHTML = "";
+  try {
+    const { data } = await api("/api/v1/settings/ai/test", {});
+    $("#set-out").innerHTML = data.ok
+      ? `<div class="banner" style="border-left-color:var(--good)"><div>✓ Connected to <strong>${esc(data.model)}</strong>. Reply: “${esc(data.reply)}”</div></div>`
+      : errBanner(data.error);
+  } catch (e) { $("#set-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#set-test"), false); }
+};
+
+$("#set-clear").onclick = async () => {
+  busy($("#set-clear"), true, "Resetting…");
+  try {
+    const { data } = await api("/api/v1/settings/ai/clear", {});
+    renderSettings(data);
+    $("#set-out").innerHTML = `<div class="banner"><div>Reset — now using the server environment variables.</div></div>`;
+    refreshHealth();
+  } catch (e) { $("#set-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#set-clear"), false); }
+};
+
 /* ============ PLAYGROUND ============ */
 const ENDPOINTS = [
   ["POST /api/v1/agent — research agent", "/api/v1/agent", { query: "What is ScrapeX?", depth: "basic", include_social: true }],
@@ -587,6 +705,7 @@ const ENDPOINTS = [
   ["POST /api/v1/social/reddit — subreddit posts", "/api/v1/social/reddit", { query_type: "posts", identifier: "python", limit: 5, options: { listing: "hot" } }],
   ["POST /api/v1/social/instagram — profile", "/api/v1/social/instagram", { query_type: "profile", identifier: "instagram" }],
   ["POST /api/v1/social/tiktok — profile", "/api/v1/social/tiktok", { query_type: "profile", identifier: "tiktok" }],
+  ["GET /api/v1/settings/ai — current AI provider config", "/api/v1/settings/ai", null],
   ["POST /api/v1/profiles/find — find a username everywhere", "/api/v1/profiles/find", { username: "mkbhd" }],
   ["POST /api/v1/runs — start a dataset run (Apify-style)", "/api/v1/runs", { platform: "hackernews", query_type: "search", identifier: "llm agents", max_items: 150 }],
   ["GET /api/v1/runs — list dataset runs", "/api/v1/runs", null],

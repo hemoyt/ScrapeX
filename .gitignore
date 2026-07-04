@@ -3,6 +3,7 @@ __pycache__/
 *.egg-info/
 dist/
 .env
+.scrapex_settings.json
 *.log
 .vscode/
 .idea/

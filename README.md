@@ -185,12 +185,22 @@ Scope it with `"platforms": ["twitter", "youtube"]` to check only what you care 
 
 ## 🧠 Bring Your Own AI
 
-Every AI feature (research agent, competitor discovery, `/extract`, search answers) runs on **whatever LLM you plug in** — cloud or fully local. Two env vars and a restart:
+Every AI feature (research agent, competitor discovery, `/extract`, search answers, AI-clean summaries) runs on **whatever LLM you plug in** — cloud or fully local.
+
+**Easiest: set it in the app.** Open the web UI → **Settings** tab, pick a provider, paste your API key, Save. No env vars, no restart — it takes effect immediately and persists on the server.
+
+<p align="center">
+  <img src="docs/screenshots/settings.png" alt="ScrapeX Settings tab — pick an AI provider and paste your API key right in the app, no restart" width="820">
+</p>
+
+Prefer env vars? Those still work too:
 
 ```bash
 SCRAPEX_AI_PROVIDER=anthropic
 SCRAPEX_AI_API_KEY=sk-ant-...
 ```
+
+(A key set in the Settings tab overrides the env var; "Reset to env" in the tab drops it again.)
 
 | Provider | `SCRAPEX_AI_PROVIDER` | Key needed | Example `SCRAPEX_AI_MODEL` |
 |---|---|:--:|---|
@@ -344,6 +354,7 @@ flowchart LR
 | `POST` | `/api/v1/runs/{id}/abort` | 🆕 Abort a running job (keeps collected items) |
 | `GET` | `/api/v1/datasets/{id}/items` | 🆕 Page/export a dataset (`format=json\|ndjson\|csv`) |
 | `POST` | `/api/v1/profiles/find` | 🆕 Find a username across every platform at once |
+| `GET`/`POST` | `/api/v1/settings/ai` | 🆕 Read/set the AI provider & key at runtime (also `/settings/ai/test`, `/clear`) |
 | `POST` | `/api/v1/search` | Web search (DDG → Startpage fallback), optional AI answer |
 | `POST` | `/api/v1/scrape` | Scrape any URL → clean markdown, metadata, links |
 | `POST` | `/api/v1/crawl` | Crawl a site (background job) |
@@ -422,6 +433,7 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 | `SCRAPEX_RUN_TIME_BUDGET` | `240` | Seconds a dataset run may spend paginating |
 | `SCRAPEX_RUN_MAX_ITEMS` | `1000` | Hard cap on `max_items` per run |
 | `SCRAPEX_RUN_PAGE_DELAY` | `0.5` | Politeness delay between pages in a run |
+| `SCRAPEX_SETTINGS_FILE` | `.scrapex_settings.json` | Where the Settings tab persists runtime AI config |
 | `SCRAPEX_NITTER_INSTANCES` | — | Comma-separated Nitter mirrors for Twitter timelines |
 | `SCRAPEX_PROXY_URL` | — | Outbound proxy for scraping |
 | `SCRAPEX_DEBUG` | `false` | Verbose logging |
@@ -450,7 +462,7 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-pytest -q                              # 101 tests, no network needed
+pytest -q                              # 112 tests, no network needed
 python scripts/verify_platforms.py    # live smoke test from YOUR egress IP
 uvicorn app.main:app --reload
 ```
@@ -475,10 +487,13 @@ ScrapeX/
 │   │   ├── social.py            # /social/{platform}, /social/search
 │   │   ├── datasets.py          # /runs, /datasets — Apify-style jobs & exports
 │   │   ├── profiles.py          # /profiles/find — username across all platforms
+│   │   ├── settings.py          # /settings/ai — set the AI provider/key from the UI
 │   │   └── extract.py, health.py
 │   ├── services/
 │   │   ├── agent.py             # ResearchAgent tool loop
 │   │   ├── ai_provider.py       # bring-your-own-AI: anthropic/openai/.../ollama/custom
+│   │   ├── ai_cleaner.py        # clean pipeline: tidy + AI summary (clean=true)
+│   │   ├── runtime_settings.py  # UI-set overrides persisted to .scrapex_settings.json
 │   │   ├── datasets.py          # run worker: cursor pagination, time budget, dedupe
 │   │   ├── search.py            # DDG → Startpage search chain
 │   │   ├── social_base.py       # SocialPlatform base (cache, degradation, fetch_page)

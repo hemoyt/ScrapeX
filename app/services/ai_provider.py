@@ -14,6 +14,7 @@ from typing import Optional
 from openai import AsyncOpenAI
 
 from app.config import settings
+from app.services import runtime_settings as rt
 
 # provider -> (base_url, key_required, default_model)
 PROVIDERS = {
@@ -35,14 +36,18 @@ PROVIDERS = {
 _LEGACY_DEFAULT_MODEL = "google/gemini-flash-1.5"
 
 
+# All AI config reads go through rt.get() so UI-set runtime overrides win over
+# the SCRAPEX_* env vars (rt.get falls back to the env value when unset).
+
+
 def provider_name() -> str:
-    name = (settings.ai_provider or "openrouter").lower().strip()
+    name = (rt.get("ai_provider") or "openrouter").lower().strip()
     return name if name in PROVIDERS else "custom"
 
 
 def resolve_base_url() -> Optional[str]:
-    if settings.ai_base_url:
-        return settings.ai_base_url
+    if rt.get("ai_base_url"):
+        return rt.get("ai_base_url")
     base, _, _ = PROVIDERS[provider_name()]
     # Back-compat: an explicitly overridden openrouter_base_url still wins there
     if provider_name() == "openrouter":
@@ -51,8 +56,8 @@ def resolve_base_url() -> Optional[str]:
 
 
 def resolve_api_key() -> Optional[str]:
-    if settings.ai_api_key:
-        return settings.ai_api_key
+    if rt.get("ai_api_key"):
+        return rt.get("ai_api_key")
     if settings.openrouter_api_key:  # back-compat: old installs only set this
         return settings.openrouter_api_key
     return None
@@ -61,10 +66,11 @@ def resolve_api_key() -> Optional[str]:
 def resolve_model(override: Optional[str] = None) -> str:
     if override:
         return override
-    if settings.ai_model and settings.ai_model != _LEGACY_DEFAULT_MODEL:
-        return settings.ai_model
+    model = rt.get("ai_model")
+    if model and model != _LEGACY_DEFAULT_MODEL:
+        return model
     _, _, default_model = PROVIDERS[provider_name()]
-    return settings.ai_model if provider_name() == "openrouter" else default_model
+    return model if provider_name() == "openrouter" else default_model
 
 
 def ai_enabled() -> bool:
@@ -88,12 +94,12 @@ def get_ai_client() -> Optional[AsyncOpenAI]:
 
 def disabled_reason() -> str:
     name = provider_name()
-    if name == "custom" and not settings.ai_base_url:
-        return "AI provider 'custom' needs SCRAPEX_AI_BASE_URL."
+    if name == "custom" and not resolve_base_url():
+        return "AI provider 'custom' needs a Base URL — set it in Settings or SCRAPEX_AI_BASE_URL."
     return (
-        f"No API key configured for AI provider '{name}'. "
-        "Set SCRAPEX_AI_API_KEY (or SCRAPEX_OPENROUTER_API_KEY), or switch "
-        "SCRAPEX_AI_PROVIDER to a local one (ollama, lmstudio, custom)."
+        f"No API key set for AI provider '{name}'. "
+        "Add one in the app's Settings tab (or set SCRAPEX_AI_API_KEY), or "
+        "switch to a local provider (ollama, lmstudio) that needs no key."
     )
 
 
@@ -103,7 +109,7 @@ def provider_info() -> dict:
         "provider": provider_name(),
         "base_url": resolve_base_url(),
         "model": resolve_model(),
-        "agent_model": settings.agent_model or resolve_model(),
+        "agent_model": rt.get("agent_model") or resolve_model(),
         "enabled": ai_enabled(),
         "available_providers": sorted(PROVIDERS),
     }
