@@ -6,132 +6,164 @@
 <title>ScrapeX — Web &amp; Social Research</title>
 <style>
   :root {
-    --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --border: #2d333b;
-    --ink: #e6edf3; --ink-2: #9aa4b2; --ink-3: #6e7681;
-    --accent: #e8a33d; --accent-ink: #1a1205;
-    --good: #3fb950; --warn: #d29922; --bad: #f85149; --info: #58a6ff;
-    --radius: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --bg: #0a0a0c; --surface: #121216; --surface-2: #1a1a20;
+    --border: #222228; --border-2: #2e2e37;
+    --ink: #ededf0; --ink-2: #9d9da8; --ink-3: #67676f;
+    --accent: #d9a13c; --accent-soft: rgba(217, 161, 60, .13); --accent-ink: #161002;
+    --good: #58a86c; --warn: #c99a3a; --bad: #cf6257; --info: #8ab0d6;
+    --radius: 10px;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   }
   * { box-sizing: border-box; margin: 0; }
+  html { -webkit-font-smoothing: antialiased; }
   body {
     background: var(--bg); color: var(--ink); min-height: 100vh;
-    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    font: 14.5px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
+  ::selection { background: var(--accent-soft); }
   a { color: var(--info); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
   header {
-    display: flex; align-items: center; gap: 20px; padding: 14px 24px;
+    display: flex; align-items: center; gap: 28px; padding: 0 28px; height: 57px;
     border-bottom: 1px solid var(--border); position: sticky; top: 0;
-    background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); z-index: 10;
+    background: rgba(10, 10, 12, .86); backdrop-filter: blur(10px); z-index: 10;
   }
-  .logo { font-weight: 700; font-size: 17px; letter-spacing: .2px; white-space: nowrap; }
-  nav { display: flex; gap: 4px; flex: 1; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: .01em; white-space: nowrap; }
+  .logo .mark { width: 9px; height: 9px; background: var(--accent); border-radius: 2px; box-shadow: 0 0 0 3px var(--accent-soft); }
+  nav { display: flex; gap: 4px; flex: 1; height: 100%; }
   nav button {
-    background: none; border: 0; color: var(--ink-2); font: inherit; font-weight: 500;
-    padding: 7px 14px; border-radius: 8px; cursor: pointer;
+    background: none; border: 0; color: var(--ink-3); font: inherit; font-size: 13.5px; font-weight: 500;
+    padding: 0 13px; cursor: pointer; height: 100%;
+    border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s ease;
   }
-  nav button:hover { color: var(--ink); background: var(--surface-2); }
-  nav button.active { color: var(--ink); background: var(--surface-2); }
-  .hstatus { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
+  nav button:hover { color: var(--ink); }
+  nav button.active { color: var(--ink); border-bottom-color: var(--accent); }
+  .hstatus { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
   .dot.ok { background: var(--good); } .dot.bad { background: var(--bad); }
   .keybtn {
-    background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border);
-    border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent; color: var(--ink-2); border: 1px solid var(--border-2);
+    border-radius: 7px; padding: 6px 12px; font: inherit; font-size: 12.5px; cursor: pointer;
+    transition: color .15s, border-color .15s;
   }
-  .keybtn:hover { color: var(--ink); }
+  .keybtn:hover { color: var(--ink); border-color: var(--ink-3); text-decoration: none; }
 
-  main { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 44px 28px 110px; }
   section[hidden] { display: none; }
-  h1 { font-size: 22px; margin-bottom: 6px; }
-  .sub { color: var(--ink-2); margin-bottom: 22px; }
+  h1 { font-family: var(--serif); font-size: 31px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 10px; }
+  .sub { color: var(--ink-2); margin-bottom: 30px; max-width: 660px; }
 
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   input[type=text], textarea, select {
-    background: var(--surface); color: var(--ink); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 10px 14px; font: inherit; outline: none;
+    background: #0e0e12; color: var(--ink); border: 1px solid var(--border-2);
+    border-radius: 8px; padding: 9px 13px; font: inherit; outline: none;
+    transition: border-color .15s, box-shadow .15s;
   }
-  input[type=text]:focus, textarea:focus, select:focus { border-color: var(--accent); }
-  textarea { width: 100%; resize: vertical; font-family: var(--mono); font-size: 13px; }
+  input[type=text]:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  input[type=text]::placeholder, textarea::placeholder { color: var(--ink-3); }
+  textarea { width: 100%; resize: vertical; font-family: var(--mono); font-size: 12.5px; }
   .grow { flex: 1; min-width: 220px; }
-  label.check { display: flex; gap: 7px; align-items: center; color: var(--ink-2); font-size: 14px; cursor: pointer; }
+  label.check { display: flex; gap: 7px; align-items: center; color: var(--ink-2); font-size: 13.5px; cursor: pointer; }
+  label.check input { accent-color: var(--accent); }
   .btn {
-    background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 600;
-    border: 0; border-radius: var(--radius); padding: 10px 20px; cursor: pointer; white-space: nowrap;
+    background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 13.5px; font-weight: 600;
+    border: 0; border-radius: 8px; padding: 9px 18px; cursor: pointer; white-space: nowrap;
+    transition: filter .15s, transform .06s;
   }
-  .btn:hover { filter: brightness(1.08); }
-  .btn:disabled { opacity: .55; cursor: wait; }
-  .btn.ghost { background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); }
+  .btn:hover { filter: brightness(1.07); }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .5; cursor: wait; }
+  .btn.ghost { background: transparent; color: var(--ink-2); border: 1px solid var(--border-2); }
+  .btn.ghost:hover { color: var(--ink); border-color: var(--ink-3); filter: none; }
 
   .banner {
-    display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border);
-    border-left: 3px solid var(--warn); background: var(--surface); border-radius: var(--radius);
-    padding: 12px 16px; margin: 16px 0; color: var(--ink-2); font-size: 14px;
+    display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--border);
+    border-left: 2px solid var(--warn); background: var(--surface); border-radius: 8px;
+    padding: 13px 16px; margin: 16px 0; color: var(--ink-2); font-size: 13.5px;
   }
   .banner.err { border-left-color: var(--bad); }
 
-  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 20px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-top: 22px; }
   .card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 18px; display: flex; flex-direction: column; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 22px; display: flex; flex-direction: column; gap: 13px;
+    transition: border-color .2s ease;
   }
-  .card h3 { font-size: 16px; }
-  .card .desc { color: var(--ink-2); font-size: 14px; }
+  .card:hover { border-color: var(--border-2); }
+  .card h3 { display: flex; align-items: center; font-size: 15px; font-weight: 600; letter-spacing: .005em; }
+  .card .desc { color: var(--ink-2); font-size: 13.5px; }
+  .pmk {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 30px; height: 30px; border-radius: 8px;
+    background: var(--surface-2); border: 1px solid var(--border-2);
+    font-size: 10.5px; font-weight: 700; letter-spacing: .04em; color: var(--ink-2);
+  }
+  .card h3 .pmk { margin-right: 10px; }
   .stats { display: flex; gap: 10px; flex-wrap: wrap; }
   .stat {
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 8px 12px; min-width: 96px;
+    padding: 9px 13px; min-width: 96px;
   }
-  .stat .v { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .stat .k { font-size: 12px; color: var(--ink-3); }
-  .mentions h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-3); margin: 8px 0 6px; }
-  .mention { font-size: 13.5px; padding: 6px 0; border-top: 1px solid var(--border); }
-  .mention .meta { color: var(--ink-3); font-size: 12px; }
+  .stat .v { font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin-top: 1px; }
+  .mentions h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); margin: 10px 0 6px; }
+  .mention { font-size: 13.5px; padding: 8px 0; border-top: 1px solid var(--border); }
+  .mention .meta { color: var(--ink-3); font-size: 12px; margin-top: 2px; }
 
-  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 9px;
-          border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-2); }
-  .chip.ok { color: var(--good); } .chip.partial { color: var(--warn); }
-  .chip.blocked, .chip.error, .chip.no_llm { color: var(--bad); }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .07em; padding: 3px 8px; border-radius: 5px;
+    background: var(--surface-2); color: var(--ink-3);
+  }
+  .chip.ok { color: var(--good); background: rgba(88, 168, 108, .1); }
+  .chip.partial { color: var(--warn); background: rgba(201, 154, 58, .1); }
+  .chip.blocked, .chip.error, .chip.no_llm { color: var(--bad); background: rgba(207, 98, 87, .1); }
 
   .answer {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 22px; margin-top: 18px; overflow-wrap: anywhere;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 26px 28px; margin-top: 20px; overflow-wrap: anywhere; font-size: 14.5px;
   }
-  .answer h2, .answer h3 { margin: 14px 0 8px; } .answer p { margin: 8px 0; }
+  .answer h2, .answer h3 { font-family: var(--serif); margin: 16px 0 8px; }
+  .answer p { margin: 8px 0; }
   .answer ul, .answer ol { margin: 8px 0 8px 22px; }
-  .answer code { font-family: var(--mono); font-size: 13px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
-  .answer pre { background: var(--surface-2); padding: 12px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+  .answer code { font-family: var(--mono); font-size: 12.5px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+  .answer pre { background: var(--surface-2); padding: 13px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
   .answer sup a { color: var(--accent); font-weight: 600; }
   .sources { margin-top: 14px; }
-  .source { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; }
-  .source .n { color: var(--accent); font-weight: 700; font-family: var(--mono); }
-  .source .plat { color: var(--ink-3); font-size: 12px; }
+  .source { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--border); font-size: 13.5px; }
+  .source .n { color: var(--accent); font-weight: 650; font-family: var(--mono); font-size: 12.5px; padding-top: 1px; }
+  .source .plat { color: var(--ink-3); font-size: 12px; margin-top: 2px; }
   details { margin-top: 14px; color: var(--ink-2); }
-  details summary { cursor: pointer; font-size: 14px; }
-  .step { font-family: var(--mono); font-size: 12.5px; padding: 6px 0; border-top: 1px solid var(--border); }
+  details summary { cursor: pointer; font-size: 13px; color: var(--ink-3); }
+  details summary:hover { color: var(--ink-2); }
+  .step { font-family: var(--mono); font-size: 12px; padding: 7px 0; border-top: 1px solid var(--border); }
 
   .out {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 16px; margin-top: 16px; font-family: var(--mono); font-size: 12.5px;
-    white-space: pre-wrap; overflow-x: auto; max-height: 560px; overflow-y: auto;
+    background: #0e0e12; border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; margin-top: 14px; font-family: var(--mono); font-size: 12px; line-height: 1.55;
+    white-space: pre-wrap; overflow-x: auto; max-height: 560px; overflow-y: auto; color: var(--ink-2);
   }
-  .outmeta { margin-top: 14px; font-size: 13px; color: var(--ink-2); display: flex; gap: 14px; }
+  .out::-webkit-scrollbar { width: 8px; height: 8px; }
+  .out::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+  .outmeta { margin-top: 16px; font-size: 12.5px; color: var(--ink-3); display: flex; gap: 16px; font-variant-numeric: tabular-nums; }
 
-  .cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 18px; }
-  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--accent-ink);
+  .cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 18px; }
+  .spin { display: inline-block; width: 13px; height: 13px; border: 2px solid var(--accent-ink);
           border-top-color: transparent; border-radius: 50%; animation: sp .7s linear infinite; vertical-align: -2px; margin-right: 7px; }
-  .btn.ghost .spin { border-color: var(--ink); border-top-color: transparent; }
+  .btn.ghost .spin { border-color: var(--ink-2); border-top-color: transparent; }
   @keyframes sp { to { transform: rotate(360deg); } }
   .muted { color: var(--ink-3); font-size: 13px; }
-  .divider { border: 0; border-top: 1px solid var(--border); margin: 34px 0 26px; }
-  h2.secttl { font-size: 17px; margin-bottom: 4px; }
+  .divider { border: 0; border-top: 1px solid var(--border); margin: 44px 0 32px; }
+  h2.secttl { font-family: var(--serif); font-size: 20px; font-weight: 600; margin-bottom: 6px; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">🦅 ScrapeX</div>
+  <div class="logo"><span class="mark"></span>ScrapeX</div>
   <nav id="tabs">
     <button data-tab="competitors" class="active">Competitors</button>
     <button data-tab="store">Store</button>
@@ -181,7 +213,7 @@
     <p class="sub">Ready-made scrapers for every platform — pick one, drop in a username or query, run it. Like an actor store, but built in, self-hosted, and free.</p>
 
     <div class="card">
-      <h3>🔎 Profile Finder</h3>
+      <h3>Profile Finder</h3>
       <div class="desc">One username, searched across every platform at once. Find where someone exists and pull their public profile data.</div>
       <div class="row">
         <input type="text" id="pf-user" class="grow" placeholder="Username — e.g. mkbhd, nasa, jack">
@@ -232,7 +264,7 @@
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (n) => n == null ? "—" : n >= 1e9 ? (n/1e9).toFixed(1)+"B" : n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : String(n);
-const STATUS_ICON = { ok: "✓", partial: "◐", blocked: "⛔", error: "✕", no_llm: "⚡" };
+const STATUS_ICON = { ok: "✓", partial: "◐", blocked: "⊘", error: "✕", no_llm: "⚡" };
 const chip = (status) => `<span class="chip ${esc(status)}">${STATUS_ICON[status] || "•"} ${esc(status)}</span>`;
 
 /* ---------- api helper ---------- */
@@ -406,16 +438,21 @@ $("#r-go").onclick = async () => {
 
 /* ============ STORE ============ */
 const STORE_META = {
-  reddit:     ["👽", "Subreddit listings, posts with comments, and search — old.reddit HTML, no key."],
-  twitter:    ["🐦", "Profiles and single tweets, keyless via fxtwitter → vxtwitter → syndication."],
-  bluesky:    ["🦋", "Profiles, feeds, threads, and search — official public AppView API."],
-  hackernews: ["🧡", "Front page, users, stories with comments, and search — Algolia API."],
-  mastodon:   ["🐘", "Profiles, timelines, and statuses on any instance."],
-  youtube:    ["▶️", "Channels, videos, and search — YouTube's own Innertube API, no key."],
-  instagram:  ["📸", "Best-effort profiles and posts via web API + embed pages."],
-  tiktok:     ["🎵", "Best-effort profiles and videos via embedded page JSON."],
-  linkedin:   ["💼", "Best-effort public profile salvage (og:/meta tags)."],
-  facebook:   ["📘", "Best-effort public page salvage (og:/meta tags)."],
+  reddit:     ["RD", "Subreddit listings, posts with comments, and search — old.reddit HTML, no key."],
+  twitter:    ["X",  "Profiles and single tweets, keyless via fxtwitter → vxtwitter → syndication."],
+  bluesky:    ["BS", "Profiles, feeds, threads, and search — official public AppView API."],
+  hackernews: ["HN", "Front page, users, stories with comments, and search — Algolia API."],
+  mastodon:   ["MA", "Profiles, timelines, and statuses on any instance."],
+  youtube:    ["YT", "Channels, videos, and search — YouTube's own Innertube API, no key."],
+  instagram:  ["IG", "Best-effort profiles and posts via web API + embed pages."],
+  tiktok:     ["TK", "Best-effort profiles and videos via embedded page JSON."],
+  linkedin:   ["LI", "Best-effort public profile salvage (og:/meta tags)."],
+  facebook:   ["FB", "Best-effort public page salvage (og:/meta tags)."],
+};
+const STORE_NAME = {
+  reddit: "Reddit", twitter: "Twitter / X", bluesky: "Bluesky", hackernews: "Hacker News",
+  mastodon: "Mastodon", youtube: "YouTube", instagram: "Instagram", tiktok: "TikTok",
+  linkedin: "LinkedIn", facebook: "Facebook",
 };
 const STORE_PLACEHOLDER = {
   reddit: "python", twitter: "jack", bluesky: "bsky.app", hackernews: "pg",
@@ -436,7 +473,7 @@ async function buildStore() {
       const qtOpts = Object.keys(caps).map(qt =>
         `<option${qt === "profile" ? " selected" : ""}>${esc(qt)}</option>`).join("");
       return `<div class="card" data-platform="${p}">
-        <div class="row" style="justify-content:space-between"><h3>${STORE_META[p][0]} ${esc(p)}</h3><div>${badges}</div></div>
+        <div class="row" style="justify-content:space-between"><h3><span class="pmk">${STORE_META[p][0]}</span>${esc(STORE_NAME[p] || p)}</h3><div>${badges}</div></div>
         <div class="desc">${STORE_META[p][1]}</div>
         <div class="row">
           <select class="s-qt">${qtOpts}</select>
@@ -495,9 +532,9 @@ $("#store-cards").addEventListener("click", async (e) => {
       out.innerHTML = `<div class="row" style="margin-top:6px">${chip(r.status === "SUCCEEDED" ? "ok" : r.status === "FAILED" ? "error" : "partial")}
         <span class="muted">${r.item_count} items · ${r.pages_fetched} pages${r.duration_seconds ? ` · ${r.duration_seconds}s` : ""}</span></div>
         <div class="row" style="margin-top:8px">
-          <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?format=csv&limit=1000" target="_blank">⬇ CSV</a>
-          <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?format=ndjson&limit=1000" target="_blank">⬇ NDJSON</a>
-          <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?limit=1000" target="_blank">JSON</a>
+          <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?format=csv&limit=1000" target="_blank">↓ CSV</a>
+          <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?format=ndjson&limit=1000" target="_blank">↓ NDJSON</a>
+          <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?limit=1000" target="_blank">↓ JSON</a>
         </div>` + (r.error ? errBanner(r.error) : "");
     } else {
       const { data } = await api(`/api/v1/social/${platform}`, { query_type: qt, identifier, limit: 10 });
@@ -517,15 +554,16 @@ $("#pf-go").onclick = async () => {
     const entries = Object.entries(data.results || {})
       .sort(([a, ra], [b, rb]) => (rb.profile ? 1 : 0) - (ra.profile ? 1 : 0));
     const rows = entries.map(([p, r]) => {
-      const icon = (STORE_META[p] || ["•"])[0];
+      const mark = (STORE_META[p] || ["•"])[0];
+      const name = STORE_NAME[p] || p;
       if (r.success && r.profile) {
         const pr = r.profile;
-        return `<div class="source"><span class="n">${icon}</span><div class="grow">
-          <a href="${esc(pr.url || "#")}" target="_blank"><strong>${esc(p)}</strong> · @${esc(String(pr.username || "").replace(/^@/, ""))}</a>${pr.display_name ? " — " + esc(pr.display_name) : ""}
+        return `<div class="source"><span class="pmk">${mark}</span><div class="grow">
+          <a href="${esc(pr.url || "#")}" target="_blank"><strong>${esc(name)}</strong> · @${esc(String(pr.username || "").replace(/^@/, ""))}</a>${pr.display_name ? " — " + esc(pr.display_name) : ""}
           <div class="plat">${pr.followers != null ? fmt(pr.followers) + " followers" : ""}${pr.posts_count != null ? ` · ${fmt(pr.posts_count)} posts` : ""}${pr.bio ? " · " + esc(pr.bio.slice(0, 90)) : ""}</div>
         </div>${chip("ok")}</div>`;
       }
-      return `<div class="source"><span class="n">${icon}</span><div class="grow"><strong>${esc(p)}</strong>
+      return `<div class="source"><span class="pmk">${mark}</span><div class="grow"><strong>${esc(name)}</strong>
         <div class="plat">${esc((r.error || r.status || "").slice(0, 110))}</div></div>${chip(r.status)}</div>`;
     }).join("");
     $("#pf-out").innerHTML = `<div class="muted" style="margin-top:10px">Found on <strong>${data.found.length}</strong> of ${data.checked.length} platforms checked</div><div class="sources">${rows}</div>`;

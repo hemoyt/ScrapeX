@@ -26,6 +26,11 @@ docker compose up -d
 
 **Open http://localhost:8000 in your browser** — ScrapeX ships with a built-in UI (no build step, no Node):
 
+<p align="center">
+  <img src="docs/screenshots/store.png" alt="ScrapeX Scraper Store — Profile Finder searching one username across every platform" width="920">
+</p>
+
+- **Store** — an actor-store-style gallery: one card per platform, pick profile/posts/search, run it or start a full dataset run with CSV export. The Profile Finder sits on top.
 - **Competitors** — type your product, AI discovers the competitors and pulls their social profiles + what Reddit/HN are saying about them. Plus a "track mentions" search across platforms.
 - **Research** — ask a question, get a cited answer with sources and the agent's full tool trace.
 - **Playground** — try every API endpoint with editable request bodies and pretty JSON.
@@ -138,6 +143,10 @@ Open **http://localhost:8000 → Store**: an Apify-store-style gallery, but buil
 
 - **Run** — instant result in the card (profile stats, latest posts, raw JSON), or
 - **Full run → dataset** — a background run with cursor pagination (up to 200 items from the UI) and one-click **CSV / NDJSON / JSON** download when it finishes.
+
+<p align="center">
+  <img src="docs/screenshots/store_run.png" alt="A Store card after a full dataset run — 200 items in 4 pages with CSV / NDJSON / JSON export" width="420">
+</p>
 
 At the top of the Store sits the **Profile Finder** — type just a username and ScrapeX checks **every profile-capable platform concurrently** and tells you where that handle exists and what its public profile says:
 
@@ -282,6 +291,10 @@ flowchart LR
 ---
 
 ## 📡 API
+
+<p align="center">
+  <img src="docs/screenshots/playground.png" alt="The built-in API playground — every endpoint with editable request bodies and live JSON responses" width="920">
+</p>
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
