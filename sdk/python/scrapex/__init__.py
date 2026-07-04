@@ -139,6 +139,20 @@ class ScrapeX:
         resp.raise_for_status()
         return resp.json()
 
+    def competitors(
+        self,
+        product: str,
+        max_competitors: int = 5,
+        enrich: bool = True,
+    ) -> Dict[str, Any]:
+        """Discover a product's competitors and pull their social profiles + mentions."""
+        resp = self.client.post(
+            f"{self.base_url}/api/v1/competitors",
+            json={"product": product, "max_competitors": max_competitors, "enrich": enrich},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     # --- research agent ---
 
     def agent(
