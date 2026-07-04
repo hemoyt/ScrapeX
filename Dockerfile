@@ -1,19 +1,22 @@
-FROM python:3.11-slim
+# Debian 12 (bookworm), not the default trixie: Playwright's install-deps
+# references font packages (ttf-unifont, ttf-ubuntu-font-family) that were
+# renamed on Debian 13, which breaks the browser install. bookworm is a
+# Playwright-supported base and installs cleanly.
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
-
-# Install system deps for Playwright
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install chromium && playwright install-deps chromium
+# Install the Playwright browser + its system libraries (used for JS rendering
+# and the TikTok fallback). Best-effort: if a future base-image change breaks
+# the OS-deps step, the image still builds and only JS rendering degrades —
+# every other endpoint works without a browser.
+RUN playwright install --with-deps chromium \
+    || playwright install chromium \
+    || echo "WARNING: Playwright browser install failed — JS rendering will be unavailable."
 
 # Copy app
 COPY app/ ./app/
@@ -24,4 +27,5 @@ RUN pip install -e ./sdk/python/
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Honor $PORT when the platform injects one (Coolify, Railway, ...), else 8000.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
