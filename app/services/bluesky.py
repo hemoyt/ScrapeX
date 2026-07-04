@@ -1,10 +1,10 @@
 """Bluesky scraper — official public AppView API, no auth required."""
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from app.models import SocialPost, SocialProfile, SocialQueryType, SocialResponse
+from app.models import SocialPost, SocialProfile, SocialQueryType, SocialRequest, SocialResponse
 from app.services.net import make_async_client
 from app.services.social_base import RELIABLE, SocialPlatform
 
@@ -102,6 +102,47 @@ class BlueskyService(SocialPlatform):
                     data=raw,
                     source=base.split("//")[1].split("/")[0],
                 )
+            except Exception as e:
+                last_error = e
+        raise last_error  # type: ignore[misc]
+
+    async def fetch_page(
+        self, req: SocialRequest, cursor: Optional[str] = None
+    ) -> Tuple[SocialResponse, Optional[str]]:
+        """The AppView paginates natively: both getAuthorFeed and searchPosts
+        return a `cursor` to pass back for the next page."""
+        if req.query_type == SocialQueryType.posts:
+            params = {"actor": self._clean_handle(req.identifier), "limit": min(req.limit, 100)}
+            if cursor:
+                params["cursor"] = cursor
+            data = await self._get("app.bsky.feed.getAuthorFeed", params)
+            feed = data.get("feed", [])
+            resp = self.ok(
+                posts=[self._to_post(item.get("post", {})) for item in feed],
+                data=feed,
+                source="bsky_appview",
+            )
+        elif req.query_type == SocialQueryType.search:
+            params = {"q": req.identifier, "limit": min(req.limit, 100)}
+            if cursor:
+                params["cursor"] = cursor
+            data = await self._search_raw(params)
+            raw = data.get("posts", [])
+            resp = self.ok(posts=[self._to_post(p) for p in raw], data=raw, source="bsky_appview")
+        else:
+            return await super().fetch_page(req, cursor)
+
+        resp.query_type = req.query_type.value
+        next_cursor = data.get("cursor")
+        return resp, next_cursor if (next_cursor and resp.posts) else None
+
+    async def _search_raw(self, params: dict) -> dict:
+        last_error: Optional[Exception] = None
+        for base in self.SEARCH_BASES:
+            try:
+                resp = await self.client.get(f"{base}/app.bsky.feed.searchPosts", params=params)
+                resp.raise_for_status()
+                return resp.json()
             except Exception as e:
                 last_error = e
         raise last_error  # type: ignore[misc]

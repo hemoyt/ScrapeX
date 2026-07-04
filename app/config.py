@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     social_timeout: float = 20     # per-platform request timeout
     nitter_instances: Optional[str] = None  # comma-separated override
 
+    # Dataset runs (Apify-style background scraping jobs)
+    run_time_budget: float = 240   # seconds a run may spend paginating
+    run_max_items: int = 1000      # hard cap on max_items per run
+    run_page_delay: float = 0.5    # politeness delay between pages
+    run_history_limit: int = 200   # runs/datasets kept in memory
+
     # Research agent
     agent_model: Optional[str] = None  # falls back to ai_model
     agent_max_steps: int = 8

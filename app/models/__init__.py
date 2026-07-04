@@ -157,6 +157,51 @@ class MultiSearchResponse(BaseModel):
     results: Dict[str, SocialResponse]  # keyed by platform, includes per-platform failures
 
 
+class RunRequest(BaseModel):
+    """Start an Apify-style dataset run: paginate a platform until max_items
+    are collected or the time budget runs out."""
+    platform: str = Field(..., description="Platform name, e.g. reddit, hackernews, bluesky")
+    query_type: SocialQueryType = Field(default=SocialQueryType.posts)
+    identifier: str = Field(..., description="Username/handle, URL, or search query")
+    max_items: int = Field(default=100, ge=1, le=5000, description="Stop after this many items")
+    options: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RunInfo(BaseModel):
+    id: str
+    dataset_id: str
+    platform: str
+    query_type: str
+    identifier: str
+    status: str = "READY"       # READY | RUNNING | SUCCEEDED | TIMED_OUT | ABORTED | FAILED
+    max_items: int
+    item_count: int = 0
+    pages_fetched: int = 0
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    source: Optional[str] = None        # strategy that served the pages
+    status_detail: Optional[str] = None # last platform status (ok/partial/...) or note
+    error: Optional[str] = None
+
+
+class DatasetInfo(BaseModel):
+    id: str
+    run_id: str
+    platform: str
+    item_count: int
+    created_at: str
+
+
+class DatasetItemsPage(BaseModel):
+    dataset_id: str
+    total: int
+    offset: int
+    limit: int
+    count: int
+    items: List[Dict[str, Any]]
+
+
 class ExtractRequest(BaseModel):
     url: str
     prompt: str = Field(..., description="What to extract, e.g. 'product name and price'")

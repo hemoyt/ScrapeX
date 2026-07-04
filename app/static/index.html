@@ -395,6 +395,8 @@ const ENDPOINTS = [
   ["POST /api/v1/social/reddit — subreddit posts", "/api/v1/social/reddit", { query_type: "posts", identifier: "python", limit: 5, options: { listing: "hot" } }],
   ["POST /api/v1/social/instagram — profile", "/api/v1/social/instagram", { query_type: "profile", identifier: "instagram" }],
   ["POST /api/v1/social/tiktok — profile", "/api/v1/social/tiktok", { query_type: "profile", identifier: "tiktok" }],
+  ["POST /api/v1/runs — start a dataset run (Apify-style)", "/api/v1/runs", { platform: "hackernews", query_type: "search", identifier: "llm agents", max_items: 150 }],
+  ["GET /api/v1/runs — list dataset runs", "/api/v1/runs", null],
   ["POST /api/v1/search — web search", "/api/v1/search", { query: "best open source scraping tools", num_results: 5, include_answer: false }],
   ["POST /api/v1/scrape — scrape a URL", "/api/v1/scrape", { url: "https://books.toscrape.com", render_js: false }],
   ["POST /api/v1/extract — AI extraction", "/api/v1/extract", { url: "https://books.toscrape.com", prompt: "book titles and prices as a list" }],
