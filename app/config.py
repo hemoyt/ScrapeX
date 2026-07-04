@@ -8,10 +8,17 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
 
-    # OpenRouter (for AI extraction)
+    # AI provider — bring your own AI (see app/services/ai_provider.py)
+    # openrouter | openai | anthropic | deepseek | xai | grok | groq | mistral
+    # | ollama | lmstudio | custom
+    ai_provider: str = "openrouter"
+    ai_api_key: Optional[str] = None     # generic key; falls back to openrouter_api_key
+    ai_base_url: Optional[str] = None    # preset override; required for provider=custom
+    ai_model: str = "google/gemini-flash-1.5"
+
+    # OpenRouter (legacy names — still honored for back-compat)
     openrouter_api_key: Optional[str] = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    ai_model: str = "google/gemini-flash-1.5"
 
     # API auth — comma-separated keys; auth is enforced only when set
     api_keys: Optional[str] = None

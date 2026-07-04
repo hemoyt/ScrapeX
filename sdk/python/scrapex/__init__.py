@@ -146,6 +146,19 @@ class ScrapeX:
         resp.raise_for_status()
         return resp.json()
 
+    def find_profiles(
+        self,
+        username: str,
+        platforms: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Find a username across platforms: returns {found: [...], results: {...}}."""
+        payload: Dict[str, Any] = {"username": username}
+        if platforms:
+            payload["platforms"] = platforms
+        resp = self.client.post(f"{self.base_url}/api/v1/profiles/find", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
     # --- Apify-style dataset runs ---
 
     def run_social(

@@ -25,6 +25,10 @@ async def health(request: Request, probe: bool = False):
     except ImportError:
         pass
 
+    # Which AI brain is plugged in (never leaks the key)
+    from app.services.ai_provider import provider_info
+    result["ai"] = provider_info()
+
     if probe:
         from app.services.cache import social_cache
         from app.services.social_registry import probe_platforms

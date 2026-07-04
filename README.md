@@ -132,6 +132,69 @@ Cursor pagination is implemented natively for **Reddit, Hacker News, Bluesky, an
 
 ---
 
+## 🏪 Scraper Store & Profile Finder
+
+Open **http://localhost:8000 → Store**: an Apify-store-style gallery, but built in, self-hosted, and free. One card per platform showing exactly what it can do (reliability badges come live from `/health`). Pick **profile / posts / post / search**, drop in a username or query, and either:
+
+- **Run** — instant result in the card (profile stats, latest posts, raw JSON), or
+- **Full run → dataset** — a background run with cursor pagination (up to 200 items from the UI) and one-click **CSV / NDJSON / JSON** download when it finishes.
+
+At the top of the Store sits the **Profile Finder** — type just a username and ScrapeX checks **every profile-capable platform concurrently** and tells you where that handle exists and what its public profile says:
+
+```bash
+curl -X POST localhost:8000/api/v1/profiles/find \
+  -H 'Content-Type: application/json' \
+  -d '{"username": "mkbhd"}'
+# -> {"found": ["bluesky", "instagram", "tiktok", "twitter", "youtube"],
+#     "checked": [... 9 platforms ...],
+#     "results": {"youtube": {"profile": {"followers": 19900000, ...}}, ...}}
+```
+
+Scope it with `"platforms": ["twitter", "youtube"]` to check only what you care about. Platforms that block anonymous lookups (LinkedIn, Facebook) are reported honestly in `results` rather than silently dropped.
+
+---
+
+## 🧠 Bring Your Own AI
+
+Every AI feature (research agent, competitor discovery, `/extract`, search answers) runs on **whatever LLM you plug in** — cloud or fully local. Two env vars and a restart:
+
+```bash
+SCRAPEX_AI_PROVIDER=anthropic
+SCRAPEX_AI_API_KEY=sk-ant-...
+```
+
+| Provider | `SCRAPEX_AI_PROVIDER` | Key needed | Example `SCRAPEX_AI_MODEL` |
+|---|---|:--:|---|
+| OpenRouter (default) | `openrouter` | ✅ | `google/gemini-flash-1.5` |
+| Anthropic | `anthropic` | ✅ | `claude-sonnet-5` |
+| OpenAI | `openai` | ✅ | `gpt-4o-mini` |
+| DeepSeek | `deepseek` | ✅ | `deepseek-chat` |
+| xAI / Grok | `xai` or `grok` | ✅ | `grok-3-mini` |
+| Groq | `groq` | ✅ | `llama-3.3-70b-versatile` |
+| Mistral | `mistral` | ✅ | `mistral-small-latest` |
+| **Ollama (local, free)** | `ollama` | ❌ | `llama3.1:8b` |
+| **LM Studio (local, free)** | `lmstudio` | ❌ | whatever you loaded |
+| Anything else (vLLM, llama.cpp, LiteLLM…) | `custom` + `SCRAPEX_AI_BASE_URL` | optional | your model id |
+
+They all speak the OpenAI chat-completions dialect, so one client covers every row. `GET /health` shows which brain is currently plugged in (`"ai": {"provider": ..., "model": ..., "enabled": ...}`) — the web UI displays it in the header. The old `SCRAPEX_OPENROUTER_API_KEY` still works unchanged.
+
+### What computer can run it?
+
+ScrapeX itself is featherweight — the heavy question is only the **local** LLM, if you choose one:
+
+| What you run | CPU | RAM | Notes |
+|---|---|---|---|
+| ScrapeX API alone (cloud or no AI) | 1 vCPU | **512 MB – 1 GB** | Runs on a $5 VPS or Raspberry Pi 4 |
+| + Playwright (JS rendering, TikTok fallback) | 2 vCPU | **+1 GB** | Headless Chromium is the hungry part |
+| + Ollama `llama3.2:3b` | 4 cores | **8 GB** | Any modern laptop; fine for extraction/answers |
+| + Ollama `llama3.1:8b` / `qwen2.5:7b` | 4–8 cores | **16 GB** | Sweet spot — good agent tool-calling; M1/M2 Mac or mid PC |
+| + Ollama `qwen2.5:14b` | 8 cores | **32 GB** | Noticeably better reasoning |
+| + Ollama `llama3.3:70b` | 16 cores / GPU | **64 GB+** (or 2×24 GB GPU) | Server class; near-cloud quality |
+
+Rule of thumb: a Q4-quantized model needs roughly **RAM ≈ parameters × 0.75 GB** plus headroom — and models at 7B+ handle the agent's tool-calling loop much more reliably than 3B ones.
+
+---
+
 ## 📱 Social Platform Support (honest matrix)
 
 Every platform speaks the same request shape via `POST /api/v1/social/{platform}`:
@@ -231,6 +294,7 @@ flowchart LR
 | `GET` | `/api/v1/runs`, `/api/v1/runs/{id}` | 🆕 List runs / poll run status |
 | `POST` | `/api/v1/runs/{id}/abort` | 🆕 Abort a running job (keeps collected items) |
 | `GET` | `/api/v1/datasets/{id}/items` | 🆕 Page/export a dataset (`format=json\|ndjson\|csv`) |
+| `POST` | `/api/v1/profiles/find` | 🆕 Find a username across every platform at once |
 | `POST` | `/api/v1/search` | Web search (DDG → Startpage fallback), optional AI answer |
 | `POST` | `/api/v1/scrape` | Scrape any URL → clean markdown, metadata, links |
 | `POST` | `/api/v1/crawl` | Crawl a site (background job) |
@@ -264,6 +328,11 @@ videos  = client.social("youtube", "posts", "@mkbhd", limit=5)
 tweet   = client.social("twitter", "post", "https://x.com/jack/status/20")
 top     = client.social("reddit", "posts", "python", listing="top")
 
+# Profile Finder — one username, every platform
+who = client.find_profiles("mkbhd")
+print(who["found"])          # ["bluesky", "twitter", "youtube", ...]
+print(who["results"]["youtube"]["profile"]["followers"])
+
 # Cross-platform search
 hits = client.social_search("ai agents", platforms=["reddit", "hackernews", "bluesky"])
 
@@ -289,8 +358,11 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 
 | Variable | Default | What it does |
 |----------|---------|---------------|
-| `SCRAPEX_OPENROUTER_API_KEY` | — | Enables the agent, `include_answer`, and `/extract` ([free key](https://openrouter.ai/keys)) |
-| `SCRAPEX_AI_MODEL` | `google/gemini-flash-1.5` | Model for extraction/answers |
+| `SCRAPEX_AI_PROVIDER` | `openrouter` | Which AI to use: `anthropic`, `openai`, `deepseek`, `xai`, `groq`, `mistral`, `ollama`, `lmstudio`, `custom`, … |
+| `SCRAPEX_AI_API_KEY` | — | Key for the chosen provider (not needed for local ones) |
+| `SCRAPEX_AI_BASE_URL` | preset | Endpoint override; required for `provider=custom` |
+| `SCRAPEX_OPENROUTER_API_KEY` | — | Legacy name — still works ([free key](https://openrouter.ai/keys)) |
+| `SCRAPEX_AI_MODEL` | per provider | Model for extraction/answers |
 | `SCRAPEX_AGENT_MODEL` | falls back to `AI_MODEL` | Model for the research agent (needs tool-calling) |
 | `SCRAPEX_AGENT_MAX_STEPS` | `8` | Tool-loop budget for `depth: "advanced"` |
 | `SCRAPEX_API_KEYS` | — | Comma-separated keys; **auth is enforced only when set** (Bearer or `X-API-Key`) |
@@ -317,6 +389,8 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 | Research agent (tool loop + trace) | 🟡 | 🟡 | ✅ |
 | **Social media (10 platforms)** | ❌ | ❌ | ✅ |
 | Apify-style dataset runs (JSON/NDJSON/CSV export) | 🟡 | ❌ | ✅ |
+| Cross-platform profile finder | ❌ | ❌ | ✅ |
+| Bring your own AI (incl. free local Ollama) | ❌ | ❌ | ✅ |
 | Honest per-platform status | — | — | ✅ |
 | Price | $19–$249/mo | $30+/mo | **Free & self-hosted** |
 
@@ -326,7 +400,7 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-pytest -q                              # 74 tests, no network needed
+pytest -q                              # 93 tests, no network needed
 python scripts/verify_platforms.py    # live smoke test from YOUR egress IP
 uvicorn app.main:app --reload
 ```
@@ -350,9 +424,11 @@ ScrapeX/
 │   │   ├── scrape.py            # /scrape, /crawl, /search
 │   │   ├── social.py            # /social/{platform}, /social/search
 │   │   ├── datasets.py          # /runs, /datasets — Apify-style jobs & exports
+│   │   ├── profiles.py          # /profiles/find — username across all platforms
 │   │   └── extract.py, health.py
 │   ├── services/
 │   │   ├── agent.py             # ResearchAgent tool loop
+│   │   ├── ai_provider.py       # bring-your-own-AI: anthropic/openai/.../ollama/custom
 │   │   ├── datasets.py          # run worker: cursor pagination, time budget, dedupe
 │   │   ├── search.py            # DDG → Startpage search chain
 │   │   ├── social_base.py       # SocialPlatform base (cache, degradation, fetch_page)

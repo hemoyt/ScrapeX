@@ -157,6 +157,23 @@ class MultiSearchResponse(BaseModel):
     results: Dict[str, SocialResponse]  # keyed by platform, includes per-platform failures
 
 
+class ProfileFindRequest(BaseModel):
+    """Find someone across platforms from just a username."""
+    username: str = Field(..., min_length=1, description="Handle to look up, with or without @")
+    platforms: Optional[List[str]] = Field(
+        default=None,
+        description="Platforms to check; omit for every profile-capable platform",
+    )
+
+
+class ProfileFindResponse(BaseModel):
+    success: bool
+    username: str
+    found: List[str] = []               # platforms that returned a profile
+    checked: List[str] = []             # platforms that were queried
+    results: Dict[str, SocialResponse] = {}  # per-platform outcome, failures included
+
+
 class RunRequest(BaseModel):
     """Start an Apify-style dataset run: paginate a platform until max_items
     are collected or the time budget runs out."""

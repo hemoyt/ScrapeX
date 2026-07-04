@@ -1,21 +1,16 @@
-"""AI-powered data extraction using OpenRouter."""
+"""AI-powered data extraction via any configured AI provider."""
 import json
 from typing import Optional, Dict, Any
-from openai import AsyncOpenAI
-from app.config import settings
+
+from app.services.ai_provider import disabled_reason, get_ai_client, resolve_model
 
 
 class AIExtractor:
     """Extract structured data from web content using LLMs."""
 
     def __init__(self):
-        self.client = None
-        if settings.openrouter_api_key:
-            # Async client — the sync one blocked the event loop inside routes.
-            self.client = AsyncOpenAI(
-                base_url=settings.openrouter_base_url,
-                api_key=settings.openrouter_api_key,
-            )
+        # Async client — the sync one blocked the event loop inside routes.
+        self.client = get_ai_client()
 
     async def extract(self, content: str, prompt: str, url: str = "") -> Dict[str, Any]:
         """Extract structured data from content using an AI prompt.
@@ -29,7 +24,7 @@ class AIExtractor:
             Parsed JSON with extracted data
         """
         if not self.client:
-            return {"error": "No OpenRouter API key configured. Set SCRAPEX_OPENROUTER_API_KEY."}
+            return {"error": disabled_reason()}
 
         # Truncate content if too long (keep first ~15K chars is plenty for most extraction)
         content = content[:15000]
@@ -51,7 +46,7 @@ Return ONLY valid JSON with the extracted data."""
 
         try:
             response = await self.client.chat.completions.create(
-                model=settings.ai_model,
+                model=resolve_model(),
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},

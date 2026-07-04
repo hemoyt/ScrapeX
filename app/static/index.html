@@ -134,6 +134,7 @@
   <div class="logo">🦅 ScrapeX</div>
   <nav id="tabs">
     <button data-tab="competitors" class="active">Competitors</button>
+    <button data-tab="store">Store</button>
     <button data-tab="research">Research</button>
     <button data-tab="playground">Playground</button>
   </nav>
@@ -172,6 +173,24 @@
       <label class="check"><input type="checkbox" value="twitter"> Twitter/X</label>
     </div>
     <div id="m-out"></div>
+  </section>
+
+  <!-- ============ STORE ============ -->
+  <section id="tab-store" hidden>
+    <h1>Scraper Store</h1>
+    <p class="sub">Ready-made scrapers for every platform — pick one, drop in a username or query, run it. Like an actor store, but built in, self-hosted, and free.</p>
+
+    <div class="card">
+      <h3>🔎 Profile Finder</h3>
+      <div class="desc">One username, searched across every platform at once. Find where someone exists and pull their public profile data.</div>
+      <div class="row">
+        <input type="text" id="pf-user" class="grow" placeholder="Username — e.g. mkbhd, nasa, jack">
+        <button class="btn" id="pf-go">Find profiles</button>
+      </div>
+      <div id="pf-out"></div>
+    </div>
+
+    <div class="cards" id="store-cards"><div class="muted">Loading platform scrapers…</div></div>
   </section>
 
   <!-- ============ RESEARCH ============ -->
@@ -232,7 +251,7 @@ function busy(btn, on, label) {
   if (on) { btn.dataset.txt = btn.textContent; btn.innerHTML = `<span class="spin"></span>${label || "Working…"}`; }
   else btn.textContent = btn.dataset.txt;
 }
-const keyBanner = (err) => `<div class="banner">⚡ <div><strong>AI features need a key.</strong> Add <code>SCRAPEX_OPENROUTER_API_KEY</code> to your <code>.env</code> (free at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>) and restart.<br><span class="muted">${esc(err || "")}</span></div></div>`;
+const keyBanner = (err) => `<div class="banner">⚡ <div><strong>AI features need a provider.</strong> Set <code>SCRAPEX_AI_PROVIDER</code> + <code>SCRAPEX_AI_API_KEY</code> in <code>.env</code> (anthropic, openai, deepseek, xai, openrouter, …) — or run a local one free: <code>SCRAPEX_AI_PROVIDER=ollama</code>. Then restart.<br><span class="muted">${esc(err || "")}</span></div></div>`;
 const errBanner = (msg) => `<div class="banner err">✕ <div>${esc(msg || "Request failed")}</div></div>`;
 
 /* ---------- tiny markdown (headings, bold, code, lists, links, [n] cites) ---------- */
@@ -271,7 +290,8 @@ $("#tabs").addEventListener("click", (e) => {
   try {
     const { data } = await api("/health", null, "GET");
     $("#hdot").className = "dot ok";
-    $("#htext").textContent = `v${data.version} · ${Object.keys(data.platforms || {}).length} platforms`;
+    const ai = data.ai ? ` · AI: ${data.ai.enabled ? data.ai.provider : "off"}` : "";
+    $("#htext").textContent = `v${data.version} · ${Object.keys(data.platforms || {}).length} platforms${ai}`;
   } catch { $("#hdot").className = "dot bad"; $("#htext").textContent = "offline"; }
 })();
 
@@ -384,6 +404,136 @@ $("#r-go").onclick = async () => {
   finally { busy($("#r-go"), false); }
 };
 
+/* ============ STORE ============ */
+const STORE_META = {
+  reddit:     ["👽", "Subreddit listings, posts with comments, and search — old.reddit HTML, no key."],
+  twitter:    ["🐦", "Profiles and single tweets, keyless via fxtwitter → vxtwitter → syndication."],
+  bluesky:    ["🦋", "Profiles, feeds, threads, and search — official public AppView API."],
+  hackernews: ["🧡", "Front page, users, stories with comments, and search — Algolia API."],
+  mastodon:   ["🐘", "Profiles, timelines, and statuses on any instance."],
+  youtube:    ["▶️", "Channels, videos, and search — YouTube's own Innertube API, no key."],
+  instagram:  ["📸", "Best-effort profiles and posts via web API + embed pages."],
+  tiktok:     ["🎵", "Best-effort profiles and videos via embedded page JSON."],
+  linkedin:   ["💼", "Best-effort public profile salvage (og:/meta tags)."],
+  facebook:   ["📘", "Best-effort public page salvage (og:/meta tags)."],
+};
+const STORE_PLACEHOLDER = {
+  reddit: "python", twitter: "jack", bluesky: "bsky.app", hackernews: "pg",
+  mastodon: "Gargron@mastodon.social", youtube: "@mkbhd", instagram: "instagram",
+  tiktok: "tiktok", linkedin: "company/anthropic", facebook: "nasa",
+};
+
+let storeBuilt = false;
+async function buildStore() {
+  if (storeBuilt) return; storeBuilt = true;
+  try {
+    const { data } = await api("/health", null, "GET");
+    const platforms = data.platforms || {};
+    $("#store-cards").innerHTML = Object.keys(STORE_META).filter(p => platforms[p]).map(p => {
+      const caps = platforms[p];
+      const badges = Object.entries(caps).map(([qt, lvl]) =>
+        `<span class="chip ${lvl === "reliable" ? "ok" : "partial"}" title="${lvl}">${esc(qt)}</span>`).join(" ");
+      const qtOpts = Object.keys(caps).map(qt =>
+        `<option${qt === "profile" ? " selected" : ""}>${esc(qt)}</option>`).join("");
+      return `<div class="card" data-platform="${p}">
+        <div class="row" style="justify-content:space-between"><h3>${STORE_META[p][0]} ${esc(p)}</h3><div>${badges}</div></div>
+        <div class="desc">${STORE_META[p][1]}</div>
+        <div class="row">
+          <select class="s-qt">${qtOpts}</select>
+          <input type="text" class="s-id grow" placeholder="${esc(STORE_PLACEHOLDER[p] || "identifier")}">
+        </div>
+        <div class="row">
+          <button class="btn s-run">Run</button>
+          <button class="btn ghost s-full" title="Background dataset run with cursor pagination — up to 200 items, exportable as CSV/NDJSON/JSON">Full run → dataset</button>
+        </div>
+        <div class="s-out"></div>
+      </div>`;
+    }).join("");
+  } catch { $("#store-cards").innerHTML = errBanner("Could not load the platform matrix."); }
+}
+buildStore();
+
+function renderSocial(d) {
+  let html = `<div class="row" style="margin-top:4px">${chip(d.status)} <span class="muted">${esc(d.source || "")}${d.cached ? " · cached" : ""}</span></div>`;
+  if (d.profile) {
+    const p = d.profile;
+    html += `<div class="stats" style="margin-top:8px">
+      <div class="stat"><div class="v">${fmt(p.followers)}</div><div class="k">followers</div></div>
+      <div class="stat"><div class="v">${fmt(p.posts_count)}</div><div class="k">posts</div></div>
+    </div>
+    <div class="mention"><a href="${esc(p.url || "#")}" target="_blank">@${esc(String(p.username || "").replace(/^@/, ""))}</a>${p.display_name ? " · " + esc(p.display_name) : ""}<div class="meta">${esc((p.bio || "").slice(0, 140))}</div></div>`;
+  }
+  if (d.posts?.length) {
+    html += d.posts.slice(0, 3).map(p => postHtml(p)).join("")
+      + (d.posts.length > 3 ? `<div class="muted">+${d.posts.length - 3} more in raw JSON…</div>` : "");
+  }
+  if (d.error) html += `<div class="muted" style="margin-top:6px">${esc(d.error)}</div>`;
+  html += `<details><summary>Raw JSON</summary><div class="out">${esc(JSON.stringify(d, null, 2).slice(0, 8000))}</div></details>`;
+  return html;
+}
+
+$("#store-cards").addEventListener("click", async (e) => {
+  const runBtn = e.target.closest(".s-run, .s-full"); if (!runBtn) return;
+  const card = runBtn.closest(".card");
+  const platform = card.dataset.platform;
+  const qt = card.querySelector(".s-qt").value;
+  const idInput = card.querySelector(".s-id");
+  const identifier = idInput.value.trim() || idInput.placeholder;
+  const out = card.querySelector(".s-out");
+  busy(runBtn, true, "Running…");
+  out.innerHTML = "";
+  try {
+    if (runBtn.classList.contains("s-full")) {
+      const { data: run } = await api("/api/v1/runs", { platform, query_type: qt, identifier, max_items: 200 });
+      if (!run.id) { out.innerHTML = errBanner(run.error || "Run failed to start"); return; }
+      let r = run;
+      for (let i = 0; i < 90 && (r.status === "READY" || r.status === "RUNNING"); i++) {
+        await new Promise(res => setTimeout(res, 2000));
+        r = (await api(`/api/v1/runs/${run.id}`, null, "GET")).data;
+        out.innerHTML = `<div class="muted">${esc(r.status)} · ${r.item_count} items · ${r.pages_fetched} pages</div>`;
+      }
+      out.innerHTML = `<div class="row" style="margin-top:6px">${chip(r.status === "SUCCEEDED" ? "ok" : r.status === "FAILED" ? "error" : "partial")}
+        <span class="muted">${r.item_count} items · ${r.pages_fetched} pages${r.duration_seconds ? ` · ${r.duration_seconds}s` : ""}</span></div>
+        <div class="row" style="margin-top:8px">
+          <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?format=csv&limit=1000" target="_blank">⬇ CSV</a>
+          <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?format=ndjson&limit=1000" target="_blank">⬇ NDJSON</a>
+          <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?limit=1000" target="_blank">JSON</a>
+        </div>` + (r.error ? errBanner(r.error) : "");
+    } else {
+      const { data } = await api(`/api/v1/social/${platform}`, { query_type: qt, identifier, limit: 10 });
+      out.innerHTML = renderSocial(data);
+    }
+  } catch (err) { out.innerHTML = errBanner(err.message); }
+  finally { busy(runBtn, false); }
+});
+
+$("#pf-go").onclick = async () => {
+  const u = $("#pf-user").value.trim();
+  if (!u) return $("#pf-user").focus();
+  busy($("#pf-go"), true, "Searching every platform…");
+  $("#pf-out").innerHTML = "";
+  try {
+    const { data } = await api("/api/v1/profiles/find", { username: u });
+    const entries = Object.entries(data.results || {})
+      .sort(([a, ra], [b, rb]) => (rb.profile ? 1 : 0) - (ra.profile ? 1 : 0));
+    const rows = entries.map(([p, r]) => {
+      const icon = (STORE_META[p] || ["•"])[0];
+      if (r.success && r.profile) {
+        const pr = r.profile;
+        return `<div class="source"><span class="n">${icon}</span><div class="grow">
+          <a href="${esc(pr.url || "#")}" target="_blank"><strong>${esc(p)}</strong> · @${esc(String(pr.username || "").replace(/^@/, ""))}</a>${pr.display_name ? " — " + esc(pr.display_name) : ""}
+          <div class="plat">${pr.followers != null ? fmt(pr.followers) + " followers" : ""}${pr.posts_count != null ? ` · ${fmt(pr.posts_count)} posts` : ""}${pr.bio ? " · " + esc(pr.bio.slice(0, 90)) : ""}</div>
+        </div>${chip("ok")}</div>`;
+      }
+      return `<div class="source"><span class="n">${icon}</span><div class="grow"><strong>${esc(p)}</strong>
+        <div class="plat">${esc((r.error || r.status || "").slice(0, 110))}</div></div>${chip(r.status)}</div>`;
+    }).join("");
+    $("#pf-out").innerHTML = `<div class="muted" style="margin-top:10px">Found on <strong>${data.found.length}</strong> of ${data.checked.length} platforms checked</div><div class="sources">${rows}</div>`;
+  } catch (e) { $("#pf-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#pf-go"), false); }
+};
+$("#pf-user").addEventListener("keydown", e => e.key === "Enter" && $("#pf-go").click());
+
 /* ============ PLAYGROUND ============ */
 const ENDPOINTS = [
   ["POST /api/v1/agent — research agent", "/api/v1/agent", { query: "What is ScrapeX?", depth: "basic", include_social: true }],
@@ -395,6 +545,7 @@ const ENDPOINTS = [
   ["POST /api/v1/social/reddit — subreddit posts", "/api/v1/social/reddit", { query_type: "posts", identifier: "python", limit: 5, options: { listing: "hot" } }],
   ["POST /api/v1/social/instagram — profile", "/api/v1/social/instagram", { query_type: "profile", identifier: "instagram" }],
   ["POST /api/v1/social/tiktok — profile", "/api/v1/social/tiktok", { query_type: "profile", identifier: "tiktok" }],
+  ["POST /api/v1/profiles/find — find a username everywhere", "/api/v1/profiles/find", { username: "mkbhd" }],
   ["POST /api/v1/runs — start a dataset run (Apify-style)", "/api/v1/runs", { platform: "hackernews", query_type: "search", identifier: "llm agents", max_items: 150 }],
   ["GET /api/v1/runs — list dataset runs", "/api/v1/runs", null],
   ["POST /api/v1/search — web search", "/api/v1/search", { query: "best open source scraping tools", num_results: 5, include_answer: false }],

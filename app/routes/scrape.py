@@ -181,21 +181,20 @@ async def search_web(req: SearchRequest):
 async def _synthesize_answer(query: str, results: list) -> str | None:
     """One-shot LLM answer over search results with [n] citations."""
     from app.config import settings
+    from app.services.ai_provider import get_ai_client, resolve_model
 
-    if not settings.openrouter_api_key:
+    client = get_ai_client()
+    if client is None:
         return None
-
-    from openai import AsyncOpenAI
 
     blocks = []
     for i, r in enumerate(results[:5], 1):
         content = r.get("content") or r.get("snippet") or ""
         blocks.append(f"[{i}] {r['title']} — {r['url']}\n{content[:2000]}")
 
-    client = AsyncOpenAI(base_url=settings.openrouter_base_url, api_key=settings.openrouter_api_key)
     try:
         response = await client.chat.completions.create(
-            model=settings.agent_model or settings.ai_model,
+            model=settings.agent_model or resolve_model(),
             messages=[
                 {
                     "role": "system",

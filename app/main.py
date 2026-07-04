@@ -11,7 +11,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.auth import require_api_key
 from app.config import settings
 from app.ratelimit import limiter
-from app.routes import scrape, social, extract, health, agent, competitors, datasets
+from app.routes import scrape, social, extract, health, agent, competitors, datasets, profiles
 
 app = FastAPI(
     title="ScrapeX",
@@ -61,6 +61,10 @@ app.include_router(
 )
 app.include_router(
     datasets.router, prefix="/api/v1", tags=["Runs & Datasets"],
+    dependencies=[Depends(require_api_key)],
+)
+app.include_router(
+    profiles.router, prefix="/api/v1", tags=["Profile Finder"],
     dependencies=[Depends(require_api_key)],
 )
 
@@ -127,6 +131,7 @@ async def api_index():
             "social_search": "/api/v1/social/search",
             "runs": "/api/v1/runs",
             "datasets": "/api/v1/datasets/{id}/items",
+            "profile_finder": "/api/v1/profiles/find",
             "agent": "/api/v1/agent",
             "competitors": "/api/v1/competitors",
         },
