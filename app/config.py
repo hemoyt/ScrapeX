@@ -52,6 +52,15 @@ class Settings(BaseSettings):
     # Proxy (optional)
     proxy_url: Optional[str] = None
 
+    # Bring-your-own session cookies — LinkedIn and Instagram login-wall
+    # anonymous traffic almost completely; pasting your own logged-in
+    # session cookie (grabbed from your own browser's devtools) lets these
+    # scrapers make authenticated requests instead of hitting the wall.
+    # Same trust/storage model as the AI API key (see runtime_settings.py).
+    linkedin_cookie: Optional[str] = None        # the `li_at` cookie value
+    instagram_sessionid: Optional[str] = None    # the `sessionid` cookie value
+    instagram_csrftoken: Optional[str] = None    # the `csrftoken` cookie value (optional)
+
     # Crawl settings
     max_crawl_depth: int = 3
     max_crawl_pages: int = 50

@@ -31,6 +31,12 @@ class AISettings(BaseModel):
     agent_model: Optional[str] = None
 
 
+class CookieSettings(BaseModel):
+    linkedin_cookie: Optional[str] = None       # "" clears it; omit to leave unchanged
+    instagram_sessionid: Optional[str] = None
+    instagram_csrftoken: Optional[str] = None
+
+
 def _mask(key: Optional[str]) -> Optional[str]:
     if not key:
         return None
@@ -72,6 +78,35 @@ async def set_ai_settings(update: AISettings):
 async def clear_ai_settings():
     runtime_settings.clear()
     return _state()
+
+
+def _cookie_state() -> dict:
+    return {
+        "linkedin_cookie_set": bool(runtime_settings.get("linkedin_cookie")),
+        "instagram_sessionid_set": bool(runtime_settings.get("instagram_sessionid")),
+        "instagram_csrftoken_set": bool(runtime_settings.get("instagram_csrftoken")),
+    }
+
+
+@router.get("/settings/cookies")
+async def get_cookie_settings():
+    """Bring-your-own session cookies for LinkedIn/Instagram — never returns
+    the actual value, only whether one is set (same trust model as the AI key)."""
+    return _cookie_state()
+
+
+@router.post("/settings/cookies")
+async def set_cookie_settings(update: CookieSettings):
+    runtime_settings.update(update.model_dump(exclude_unset=True))
+    return _cookie_state()
+
+
+@router.post("/settings/cookies/clear")
+async def clear_cookie_settings():
+    runtime_settings.update({
+        "linkedin_cookie": "", "instagram_sessionid": "", "instagram_csrftoken": "",
+    })
+    return _cookie_state()
 
 
 @router.post("/settings/ai/test")

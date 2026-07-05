@@ -172,6 +172,54 @@
   #tab-settings .card input, #tab-settings .card select { width: 100%; }
   #tab-settings .card .row { margin-top: 4px; }
   #tab-settings .card .row input, #tab-settings .card .row button { width: auto; }
+
+  /* ---------- data viewer ---------- */
+  .dv-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 18px 0 4px; }
+  .dv-badge { font-size: 12.5px; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--border);
+              border-radius: 7px; padding: 6px 11px; white-space: nowrap; }
+  .dv-badge strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .dv-viewtabs { display: inline-flex; border: 1px solid var(--border-2); border-radius: 8px; overflow: hidden; flex: none; }
+  .dv-viewtabs button { background: transparent; border: 0; color: var(--ink-2); font: inherit; font-size: 12.5px;
+                         padding: 7px 13px; cursor: pointer; border-right: 1px solid var(--border-2); }
+  .dv-viewtabs button:last-child { border-right: 0; }
+  .dv-viewtabs button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .dv-search { min-width: 200px; }
+  .dv-empty { border: 1px dashed var(--border-2); border-radius: 12px; padding: 40px 24px; text-align: center;
+              color: var(--ink-2); margin-top: 20px; }
+  .dv-empty strong { color: var(--ink); }
+  .dv-panel { margin-top: 16px; }
+  .dv-table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: auto; max-height: 560px; margin-top: 14px; }
+  table.dv-table { border-collapse: collapse; width: 100%; font-size: 13px; white-space: nowrap; }
+  table.dv-table th { position: sticky; top: 0; background: var(--surface-2); text-align: left; padding: 9px 14px;
+                       font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3);
+                       border-bottom: 1px solid var(--border-2); z-index: 1; }
+  table.dv-table td { padding: 9px 14px; border-bottom: 1px solid var(--border); max-width: 320px;
+                       overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  table.dv-table td.dv-num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.dv-table tbody tr:hover { background: var(--surface); }
+  table.dv-table tbody tr:nth-child(even) { background: rgba(255,255,255,.012); }
+  .dv-pager { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12.5px; color: var(--ink-2); }
+  .dv-prompt-row { display: flex; gap: 10px; margin-top: 10px; align-items: flex-start; }
+  .dv-prompt-row textarea { flex: 1; font-family: inherit; font-size: 13.5px; }
+  .dv-notes { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border);
+              border-left: 2px solid var(--accent); background: var(--surface); border-radius: 8px;
+              padding: 12px 15px; margin-top: 12px; font-size: 13.5px; color: var(--ink-2); }
+  .dv-load { margin-top: 14px; }
+  .dv-load textarea { width: 100%; font-family: var(--mono); font-size: 12px; }
+  .dv-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100;
+                        display: flex; align-items: flex-start; justify-content: center; padding: 60px 20px; }
+  .dv-modal { background: var(--surface); border: 1px solid var(--border-2); border-radius: 12px;
+              max-width: 720px; width: 100%; max-height: 75vh; display: flex; flex-direction: column; }
+  .dv-modal header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px;
+                      border-bottom: 1px solid var(--border); font-weight: 600; font-size: 14px; }
+  .dv-modal header button { background: none; border: 0; color: var(--ink-3); font-size: 18px; cursor: pointer; line-height: 1; }
+  .dv-modal header button:hover { color: var(--ink); }
+  .dv-modal pre { margin: 0; padding: 16px 18px; overflow: auto; font-family: var(--mono); font-size: 12px;
+                  color: var(--ink-2); white-space: pre-wrap; word-break: break-word; }
+  .dv-cards .card { padding: 16px 18px; gap: 8px; }
+  .dv-cards dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+  .dv-cards dt { color: var(--ink-3); text-transform: uppercase; font-size: 10.5px; letter-spacing: .05em; padding-top: 2px; }
+  .dv-cards dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
@@ -181,6 +229,7 @@
   <nav id="tabs">
     <button data-tab="competitors" class="active">Competitors</button>
     <button data-tab="store">Store</button>
+    <button data-tab="data">Data Viewer</button>
     <button data-tab="research">Research</button>
     <button data-tab="studio">AI Studio</button>
     <button data-tab="playground">Playground</button>
@@ -241,6 +290,58 @@
     <div class="cards" id="store-cards"><div class="muted">Loading platform scrapers…</div></div>
   </section>
 
+  <!-- ============ DATA VIEWER ============ -->
+  <section id="tab-data" hidden>
+    <h1>Data Viewer</h1>
+    <p class="sub">Every result from Competitors, Store, and Runs can be opened here as a readable table instead of raw JSON. Describe how you want it cleaned — dedupe, extract fields, drop noise — and the AI reshapes it.</p>
+
+    <div class="row">
+      <button class="btn ghost" id="dv-paste-toggle">Paste JSON…</button>
+      <button class="btn ghost" id="dv-reset" hidden>Reset to original</button>
+      <button class="btn ghost" id="dv-clear" hidden>Clear</button>
+      <span class="grow"></span>
+      <a class="keybtn" id="dv-dl-json" hidden>↓ JSON</a>
+      <a class="keybtn" id="dv-dl-csv" hidden>↓ CSV</a>
+    </div>
+
+    <div class="dv-load" id="dv-paste-box" hidden>
+      <textarea id="dv-paste-input" rows="6" placeholder='Paste a JSON array of objects — e.g. [{"name":"Ada","email":"ada@x.com"}, ...]'></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="dv-paste-load">Load</button>
+        <span class="muted">Also accepts a single object, or an object containing a list (e.g. {"items":[...]})</span>
+      </div>
+    </div>
+
+    <div id="dv-empty" class="dv-empty">
+      <strong>No data loaded yet.</strong><br>
+      Run something in <a href="#" onclick="switchTab('competitors');return false">Competitors</a> or the
+      <a href="#" onclick="switchTab('store');return false">Store</a>, then click “View in Data Viewer” on the result —
+      or paste your own JSON above.
+    </div>
+
+    <div id="dv-body" hidden>
+      <div class="dv-toolbar">
+        <span class="dv-badge"><strong id="dv-count">0</strong> rows<span id="dv-source"></span></span>
+        <div class="dv-viewtabs" id="dv-viewtabs">
+          <button data-view="table" class="active">Table</button>
+          <button data-view="cards">Cards</button>
+          <button data-view="raw">Raw JSON</button>
+        </div>
+        <input type="text" id="dv-search" class="dv-search" placeholder="Filter rows…">
+        <span class="grow"></span>
+      </div>
+
+      <div class="dv-prompt-row">
+        <textarea id="dv-prompt" rows="2" placeholder='e.g. "Keep only name, email and company. Remove duplicates. One row per person."'></textarea>
+        <button class="btn" id="dv-clean-go">Clean with AI</button>
+      </div>
+      <div id="dv-notes-out"></div>
+
+      <div class="dv-panel" id="dv-panel"></div>
+      <div class="dv-pager" id="dv-pager" hidden></div>
+    </div>
+  </section>
+
   <!-- ============ RESEARCH ============ -->
   <section id="tab-research" hidden>
     <h1>Research agent</h1>
@@ -293,6 +394,29 @@
     </div>
 
     <p class="muted" style="margin-top:16px;max-width:640px">Local providers (<code>ollama</code>, <code>lmstudio</code>) need no key — just point ScrapeX at them. Pick "Custom model ID…" if your model isn't in the list. Your key is stored on the server in <code>.scrapex_settings.json</code> (same trust level as an <code>.env</code> file). If your API is public, set <code>SCRAPEX_API_KEYS</code> so only you can change this.</p>
+
+    <div class="card" style="max-width:640px;margin-top:18px">
+      <h3>Session cookies <span class="muted" style="font-weight:400;font-size:12.5px;margin-left:8px">(optional — fixes LinkedIn &amp; Instagram)</span></h3>
+      <div class="desc">LinkedIn and Instagram login-wall anonymous requests almost completely (confirmed: LinkedIn returns a bot-block, Instagram rate-limits/redirects to login). Paste a cookie from your own logged-in browser session and these platforms are fetched authenticated as you — the same mechanism a real signed-in browser tab uses.</div>
+
+      <label class="muted" style="margin-top:12px">LinkedIn — <code>li_at</code> cookie</label>
+      <input type="password" id="ck-linkedin" placeholder="Paste the li_at cookie value">
+      <div class="muted" id="ck-linkedin-hint" style="margin-top:4px">From your browser: DevTools → Application/Storage → Cookies → linkedin.com → <code>li_at</code>.</div>
+
+      <label class="muted" style="margin-top:12px">Instagram — <code>sessionid</code> cookie</label>
+      <input type="password" id="ck-ig-session" placeholder="Paste the sessionid cookie value">
+      <div class="muted" id="ck-ig-session-hint" style="margin-top:4px">DevTools → Cookies → instagram.com → <code>sessionid</code>.</div>
+
+      <label class="muted" style="margin-top:12px">Instagram — <code>csrftoken</code> cookie <span style="text-transform:none">(optional)</span></label>
+      <input type="text" id="ck-ig-csrf" placeholder="Paste the csrftoken cookie value">
+
+      <div class="row" style="margin-top:14px">
+        <button class="btn" id="ck-save">Save</button>
+        <button class="btn ghost" id="ck-clear">Clear all</button>
+      </div>
+      <div id="ck-out"></div>
+    </div>
+    <p class="muted" style="margin-top:16px;max-width:640px">These are <strong>your own</strong> account's cookies, used only to make requests as you — the same as staying signed in in a browser tab. Treat them like passwords: anyone with the cookie can act as your session. Stored server-side the same way as the AI key.</p>
   </section>
 
   <!-- ============ AI STUDIO ============ -->
@@ -332,6 +456,7 @@
     </div>
     <textarea id="p-body" rows="8" style="margin-top:10px" spellcheck="false"></textarea>
     <div class="outmeta" id="p-meta" hidden></div>
+    <div class="row" id="p-dv-row" hidden style="margin-top:10px"><button class="btn ghost" id="p-view-dv">View in Data Viewer</button></div>
     <div class="out" id="p-out" hidden></div>
   </section>
 
@@ -389,12 +514,15 @@ function md(text, nSources) {
 }
 
 /* ---------- tabs ---------- */
+function switchTab(name) {
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll("main > section").forEach(s => s.hidden = s.id !== "tab-" + name);
+  if (name === "settings") loadSettings();
+  if (name === "studio") loadStudioModels();
+}
 $("#tabs").addEventListener("click", (e) => {
   const btn = e.target.closest("button"); if (!btn) return;
-  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b === btn));
-  document.querySelectorAll("main > section").forEach(s => s.hidden = s.id !== "tab-" + btn.dataset.tab);
-  if (btn.dataset.tab === "settings") loadSettings();
-  if (btn.dataset.tab === "studio") loadStudioModels();
+  switchTab(btn.dataset.tab);
 });
 
 /* ---------- model picker (multiple choice, with a "custom" escape hatch) ---------- */
@@ -483,8 +611,9 @@ $("#c-go").onclick = async () => {
           ${!reddit && !hn && $("#c-enrich").checked ? `<div class="muted">No recent mentions found.</div>` : ""}
         </div>
       </div>`;
-    }).join("") + `</div>
-    <details><summary>Grounding sources (${data.sources.length})</summary>
+    }).join("") + `</div>`
+    + stashButton(data.competitors, "View competitors in Data Viewer", "competitors")
+    + `<details><summary>Grounding sources (${data.sources.length})</summary>
       ${data.sources.map(s => `<div class="step"><a href="${esc(s.url)}" target="_blank">${esc(s.title)}</a></div>`).join("")}
     </details>`;
   } catch (e) { $("#c-out").innerHTML = errBanner(e.message); }
@@ -499,11 +628,14 @@ $("#m-go").onclick = async () => {
   $("#m-out").innerHTML = "";
   try {
     const { data } = await api("/api/v1/social/search", { query, platforms, limit: 5 });
+    const flatRows = [];
+    Object.entries(data.results || {}).forEach(([plat, r]) => (r.posts || []).forEach(p => flatRows.push({ platform: plat, ...p })));
     $("#m-out").innerHTML = `<div class="cols">` + Object.entries(data.results || {}).map(([plat, r]) => `
       <div class="card">
         <div class="row" style="justify-content:space-between"><h3>${esc(plat)}</h3>${chip(r.status)}</div>
         ${r.posts?.length ? r.posts.map(p => postHtml(p)).join("") : `<div class="muted">${esc(r.error || "No results")}</div>`}
-      </div>`).join("") + `</div>`;
+      </div>`).join("") + `</div>`
+      + stashButton(flatRows, "View mentions in Data Viewer", "mentions: " + query);
   } catch (e) { $("#m-out").innerHTML = errBanner(e.message); }
   finally { busy($("#m-go"), false); }
 };
@@ -550,9 +682,9 @@ const STORE_META = {
   hackernews: ["HN", "Front page, users, stories with comments, and search — Algolia API."],
   mastodon:   ["MA", "Profiles, timelines, and statuses on any instance."],
   youtube:    ["YT", "Channels, videos, and search — YouTube's own Innertube API, no key."],
-  instagram:  ["IG", "Best-effort profiles and posts via web API + embed pages."],
+  instagram:  ["IG", "Profiles and posts via web API + embed pages — add your session cookie in Settings for authenticated, far more reliable access."],
   tiktok:     ["TK", "Best-effort profiles and videos via embedded page JSON."],
-  linkedin:   ["LI", "Best-effort public profile salvage (og:/meta tags)."],
+  linkedin:   ["LI", "Public profile salvage (og:/meta tags) — add your li_at session cookie in Settings for authenticated access instead of the login wall."],
   facebook:   ["FB", "Best-effort public page salvage (og:/meta tags)."],
 };
 const STORE_NAME = {
@@ -613,6 +745,8 @@ function renderSocial(d) {
       + (d.posts.length > 3 ? `<div class="muted">+${d.posts.length - 3} more in raw JSON…</div>` : "");
   }
   if (d.error) html += `<div class="muted" style="margin-top:6px">${esc(d.error)}</div>`;
+  const dvRows = d.posts?.length ? d.posts : (d.profile ? [d.profile] : (d.data?.length ? d.data : []));
+  html += `<div>${stashButton(dvRows, "View in Data Viewer", d.platform || "")}</div>`;
   html += `<details><summary>Raw JSON</summary><div class="out">${esc(JSON.stringify(d, null, 2).slice(0, 8000))}</div></details>`;
   return html;
 }
@@ -645,6 +779,7 @@ $("#store-cards").addEventListener("click", async (e) => {
           <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?format=csv&limit=1000" target="_blank">↓ CSV</a>
           <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?format=ndjson&limit=1000" target="_blank">↓ NDJSON</a>
           <a class="keybtn" href="/api/v1/datasets/${esc(r.dataset_id)}/items?limit=1000" target="_blank">↓ JSON</a>
+          ${r.item_count ? `<button class="btn ghost dv-load-dataset" data-dataset="${esc(r.dataset_id)}">View in Data Viewer</button>` : ""}
         </div>` + (r.error ? errBanner(r.error) : "");
     } else {
       const { data } = await api(`/api/v1/social/${platform}`, { query_type: qt, identifier, limit: 10, clean });
@@ -676,11 +811,245 @@ $("#pf-go").onclick = async () => {
       return `<div class="source"><span class="pmk">${mark}</span><div class="grow"><strong>${esc(name)}</strong>
         <div class="plat">${esc((r.error || r.status || "").slice(0, 110))}</div></div>${chip(r.status)}</div>`;
     }).join("");
-    $("#pf-out").innerHTML = `<div class="muted" style="margin-top:10px">Found on <strong>${data.found.length}</strong> of ${data.checked.length} platforms checked</div><div class="sources">${rows}</div>`;
+    const dvProfiles = entries.filter(([, r]) => r.profile).map(([p, r]) => ({ platform: p, ...r.profile }));
+    $("#pf-out").innerHTML = `<div class="muted" style="margin-top:10px">Found on <strong>${data.found.length}</strong> of ${data.checked.length} platforms checked</div><div class="sources">${rows}</div>`
+      + stashButton(dvProfiles, "View profiles in Data Viewer", "profiles: " + u);
   } catch (e) { $("#pf-out").innerHTML = errBanner(e.message); }
   finally { busy($("#pf-go"), false); }
 };
 $("#pf-user").addEventListener("keydown", e => e.key === "Enter" && $("#pf-go").click());
+
+/* ============ DATA VIEWER ============ */
+const DV_PAGE_SIZE = 50;
+const DV = { items: [], original: [], source: "", context: "", view: "table", page: 0, filter: "" };
+let DV_STASH_ID = 0;
+const DV_STASH = {};
+let dvJsonUrl = null, dvCsvUrl = null;
+
+// Any tab that produces a list can offer to open it here — the button just
+// stashes the rows (can't serialize live data into an onclick attribute) and
+// a delegated click loads them.
+function stashButton(items, label, source) {
+  if (!items || !items.length) return "";
+  const id = ++DV_STASH_ID;
+  DV_STASH[id] = items;
+  return `<button class="btn ghost dv-open-stash" data-stash="${id}" data-source="${esc(source || "")}" style="margin-top:8px">${esc(label || "View in Data Viewer")}</button>`;
+}
+
+function flattenValue(v) {
+  if (v == null) return "";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+function normalizeRows(items) {
+  return items.map(it => (it && typeof it === "object" && !Array.isArray(it)) ? it : { value: it });
+}
+// Best-effort: pull a list of rows out of whatever shape an API response has.
+function extractArray(data) {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object") {
+    for (const key of ["items", "posts", "results", "competitors", "sources", "data"]) {
+      if (Array.isArray(data[key])) return data[key];
+    }
+    const vals = Object.values(data);
+    if (vals.length && vals.every(v => v && typeof v === "object" && !Array.isArray(v))) {
+      const flat = [];
+      Object.entries(data).forEach(([k, v]) => {
+        if (Array.isArray(v.posts)) v.posts.forEach(p => flat.push({ platform: k, ...p }));
+        else if (v.profile) flat.push({ platform: k, ...v.profile });
+      });
+      if (flat.length) return flat;
+    }
+    return [data];
+  }
+  return [];
+}
+
+function toCSV(items) {
+  if (!items.length) return "";
+  const fields = [];
+  items.forEach(it => Object.keys(it).forEach(k => { if (!fields.includes(k)) fields.push(k); }));
+  const cell = (v) => {
+    if (v == null) return "";
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [fields.join(",")].concat(items.map(it => fields.map(f => cell(it[f])).join(","))).join("\n");
+}
+
+function openInViewer(items, meta) {
+  const rows = normalizeRows(items || []);
+  if (!rows.length) return;
+  DV.items = rows;
+  DV.original = rows;
+  DV.source = (meta && meta.source) || "";
+  DV.context = (meta && meta.context) || DV.source;
+  DV.page = 0;
+  DV.filter = "";
+  $("#dv-search").value = "";
+  $("#dv-prompt").value = "";
+  $("#dv-notes-out").innerHTML = "";
+  switchTab("data");
+  renderDataViewer();
+}
+
+function dvFilteredItems() {
+  if (!DV.filter) return DV.items;
+  const f = DV.filter.toLowerCase();
+  return DV.items.filter(row => JSON.stringify(row).toLowerCase().includes(f));
+}
+function dvColumns(rows) {
+  const cols = [], seen = new Set();
+  rows.forEach(row => Object.keys(row).forEach(k => { if (!seen.has(k)) { seen.add(k); cols.push(k); } }));
+  return cols;
+}
+function dvSetDownloads() {
+  if (dvJsonUrl) URL.revokeObjectURL(dvJsonUrl);
+  if (dvCsvUrl) URL.revokeObjectURL(dvCsvUrl);
+  dvJsonUrl = URL.createObjectURL(new Blob([JSON.stringify(DV.items, null, 2)], { type: "application/json" }));
+  dvCsvUrl = URL.createObjectURL(new Blob([toCSV(DV.items)], { type: "text/csv" }));
+  $("#dv-dl-json").href = dvJsonUrl;
+  $("#dv-dl-json").download = "scrapex-data.json";
+  $("#dv-dl-csv").href = dvCsvUrl;
+  $("#dv-dl-csv").download = "scrapex-data.csv";
+}
+
+function dvModal(rowJson) {
+  const back = document.createElement("div");
+  back.className = "dv-modal-backdrop";
+  back.innerHTML = `<div class="dv-modal"><header><span>Row detail</span><button aria-label="Close">×</button></header><pre>${esc(rowJson)}</pre></div>`;
+  const close = () => { back.remove(); document.removeEventListener("keydown", onEsc); };
+  const onEsc = (e) => { if (e.key === "Escape") close(); };
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("header button")) close(); });
+  document.addEventListener("keydown", onEsc);
+  document.body.appendChild(back);
+}
+
+function renderDataViewer() {
+  const hasData = DV.items.length > 0;
+  $("#dv-empty").hidden = hasData;
+  $("#dv-body").hidden = !hasData;
+  $("#dv-reset").hidden = !hasData || DV.items === DV.original;
+  $("#dv-clear").hidden = !hasData;
+  $("#dv-dl-json").hidden = !hasData;
+  $("#dv-dl-csv").hidden = !hasData;
+  if (!hasData) return;
+
+  dvSetDownloads();
+  const filtered = dvFilteredItems();
+  $("#dv-count").textContent = filtered.length === DV.items.length ? DV.items.length : `${filtered.length} / ${DV.items.length}`;
+  $("#dv-source").textContent = DV.source ? ` · ${DV.source}` : "";
+
+  const start = DV.page * DV_PAGE_SIZE;
+  const pageRows = filtered.slice(start, start + DV_PAGE_SIZE);
+
+  if (DV.view === "raw") {
+    $("#dv-panel").innerHTML = `<div class="out">${esc(JSON.stringify(filtered, null, 2).slice(0, 30000))}</div>`;
+  } else if (DV.view === "cards") {
+    $("#dv-panel").innerHTML = `<div class="cards dv-cards">` + pageRows.map((row, i) => `
+      <div class="card" data-row="${start + i}">
+        <dl>${Object.entries(row).slice(0, 14).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(flattenValue(v).slice(0, 400))}</dd>`).join("")}</dl>
+      </div>`).join("") + `</div>`;
+  } else {
+    const cols = dvColumns(pageRows);
+    $("#dv-panel").innerHTML = `<div class="dv-table-wrap"><table class="dv-table">
+      <thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead>
+      <tbody>${pageRows.map((row, i) => `<tr data-row="${start + i}">${cols.map(c => {
+        const v = row[c];
+        const text = flattenValue(v);
+        return `<td class="${typeof v === "number" ? "dv-num" : ""}" title="${esc(text.slice(0, 400))}">${esc(text.slice(0, 140))}</td>`;
+      }).join("")}</tr>`).join("")}</tbody>
+    </table></div>`;
+  }
+
+  const pages = Math.max(1, Math.ceil(filtered.length / DV_PAGE_SIZE));
+  $("#dv-pager").hidden = pages <= 1;
+  if (pages > 1) {
+    $("#dv-pager").innerHTML = `
+      <button class="btn ghost" id="dv-prev" ${DV.page === 0 ? "disabled" : ""}>&larr; Prev</button>
+      <span>Page ${DV.page + 1} of ${pages}</span>
+      <button class="btn ghost" id="dv-next" ${DV.page >= pages - 1 ? "disabled" : ""}>Next &rarr;</button>`;
+    $("#dv-prev")?.addEventListener("click", () => { DV.page--; renderDataViewer(); });
+    $("#dv-next")?.addEventListener("click", () => { DV.page++; renderDataViewer(); });
+  }
+}
+
+$("#dv-panel").addEventListener("click", (e) => {
+  const target = e.target.closest("tr[data-row], .card[data-row]"); if (!target) return;
+  const row = dvFilteredItems()[+target.dataset.row];
+  if (row) dvModal(JSON.stringify(row, null, 2));
+});
+
+$("#dv-viewtabs").addEventListener("click", (e) => {
+  const btn = e.target.closest("button"); if (!btn) return;
+  DV.view = btn.dataset.view;
+  document.querySelectorAll("#dv-viewtabs button").forEach(b => b.classList.toggle("active", b === btn));
+  DV.page = 0;
+  renderDataViewer();
+});
+$("#dv-search").addEventListener("input", () => { DV.filter = $("#dv-search").value.trim(); DV.page = 0; renderDataViewer(); });
+
+$("#dv-reset").onclick = () => { DV.items = DV.original; DV.page = 0; $("#dv-notes-out").innerHTML = ""; renderDataViewer(); };
+$("#dv-clear").onclick = () => {
+  DV.items = []; DV.original = []; DV.source = ""; DV.context = "";
+  $("#dv-prompt").value = ""; $("#dv-notes-out").innerHTML = "";
+  renderDataViewer();
+};
+
+$("#dv-paste-toggle").onclick = () => { $("#dv-paste-box").hidden = !$("#dv-paste-box").hidden; };
+$("#dv-paste-load").onclick = () => {
+  const raw = $("#dv-paste-input").value.trim();
+  if (!raw) return;
+  let parsed;
+  try { parsed = JSON.parse(raw); }
+  catch (e) { $("#dv-notes-out").innerHTML = errBanner("Not valid JSON: " + e.message); return; }
+  const items = extractArray(parsed);
+  if (!items.length) { $("#dv-notes-out").innerHTML = errBanner("Couldn't find a list of rows in that JSON."); return; }
+  openInViewer(items, { source: "pasted JSON" });
+  $("#dv-paste-box").hidden = true;
+  $("#dv-paste-input").value = "";
+};
+
+$("#dv-clean-go").onclick = async () => {
+  const prompt = $("#dv-prompt").value.trim();
+  if (!prompt) return $("#dv-prompt").focus();
+  if (!DV.items.length) return;
+  busy($("#dv-clean-go"), true, "Cleaning…");
+  $("#dv-notes-out").innerHTML = "";
+  try {
+    const { data } = await api("/api/v1/clean", { items: DV.items, prompt, context: DV.context || DV.source });
+    if (!data.success) { $("#dv-notes-out").innerHTML = errBanner(data.error || "Clean failed"); return; }
+    DV.items = data.items?.length ? data.items : DV.items;
+    DV.page = 0;
+    let banner = "";
+    if (data.status === "no_llm") banner = keyBanner(data.notes);
+    else if (data.status === "error") banner = errBanner(data.notes || data.error);
+    else if (data.notes) banner = `<div class="dv-notes">✓ <div>${esc(data.notes)}${data.truncated ? ` <span class="muted">(only the first ${DV.original.length > 60 ? 60 : DV.original.length} rows were sent to the AI)</span>` : ""}</div></div>`;
+    $("#dv-notes-out").innerHTML = banner;
+    renderDataViewer();
+  } catch (e) { $("#dv-notes-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#dv-clean-go"), false); }
+};
+
+// Delegated: "View in Data Viewer" buttons stashed from other tabs, and the
+// "View in Data Viewer" button on a completed full dataset run.
+document.addEventListener("click", async (e) => {
+  const openBtn = e.target.closest(".dv-open-stash");
+  if (openBtn) {
+    const items = DV_STASH[openBtn.dataset.stash];
+    if (items) openInViewer(items, { source: openBtn.dataset.source || "" });
+    return;
+  }
+  const dsBtn = e.target.closest(".dv-load-dataset");
+  if (dsBtn) {
+    busy(dsBtn, true, "Loading…");
+    try {
+      const { data } = await api(`/api/v1/datasets/${dsBtn.dataset.dataset}/items?limit=1000`, null, "GET");
+      openInViewer(data.items || [], { source: `dataset ${dsBtn.dataset.dataset}` });
+    } catch (err) { alert(err.message); }
+    finally { busy(dsBtn, false); }
+  }
+});
 
 /* ============ SETTINGS ============ */
 let SET_STATE = null;
@@ -713,7 +1082,52 @@ async function loadSettings() {
     const { data } = await api("/api/v1/settings/ai", null, "GET");
     renderSettings(data);
   } catch (e) { $("#set-current").innerHTML = errBanner(e.message); }
+  loadCookieSettings();
 }
+
+/* ---------- session cookies (LinkedIn / Instagram) ---------- */
+function renderCookieSettings(s) {
+  $("#ck-linkedin").placeholder = s.linkedin_cookie_set ? "Saved — type to replace" : "Paste the li_at cookie value";
+  $("#ck-ig-session").placeholder = s.instagram_sessionid_set ? "Saved — type to replace" : "Paste the sessionid cookie value";
+  $("#ck-ig-csrf").placeholder = s.instagram_csrftoken_set ? "Saved — type to replace" : "Paste the csrftoken cookie value";
+  $("#ck-linkedin").value = "";
+  $("#ck-ig-session").value = "";
+  $("#ck-ig-csrf").value = "";
+}
+
+async function loadCookieSettings() {
+  try {
+    const { data } = await api("/api/v1/settings/cookies", null, "GET");
+    renderCookieSettings(data);
+  } catch (e) { $("#ck-out").innerHTML = errBanner(e.message); }
+}
+
+$("#ck-save").onclick = async () => {
+  const body = {};
+  const li = $("#ck-linkedin").value.trim();
+  const igs = $("#ck-ig-session").value.trim();
+  const igc = $("#ck-ig-csrf").value.trim();
+  if (li) body.linkedin_cookie = li;
+  if (igs) body.instagram_sessionid = igs;
+  if (igc) body.instagram_csrftoken = igc;
+  busy($("#ck-save"), true, "Saving…");
+  try {
+    const { data } = await api("/api/v1/settings/cookies", body);
+    renderCookieSettings(data);
+    $("#ck-out").innerHTML = `<div class="banner"><div>✓ Saved.</div></div>`;
+  } catch (e) { $("#ck-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#ck-save"), false); }
+};
+
+$("#ck-clear").onclick = async () => {
+  busy($("#ck-clear"), true, "Clearing…");
+  try {
+    const { data } = await api("/api/v1/settings/cookies/clear", {});
+    renderCookieSettings(data);
+    $("#ck-out").innerHTML = `<div class="banner"><div>Cleared — LinkedIn/Instagram go back to anonymous best-effort access.</div></div>`;
+  } catch (e) { $("#ck-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#ck-clear"), false); }
+};
 
 $("#set-provider").onchange = () => {
   // reflect the new provider's key/model hints without saving yet — don't
@@ -815,7 +1229,9 @@ const ENDPOINTS = [
   ["POST /api/v1/social/instagram — profile", "/api/v1/social/instagram", { query_type: "profile", identifier: "instagram" }],
   ["POST /api/v1/social/tiktok — profile", "/api/v1/social/tiktok", { query_type: "profile", identifier: "tiktok" }],
   ["GET /api/v1/settings/ai — current AI provider config", "/api/v1/settings/ai", null],
+  ["GET /api/v1/settings/cookies — LinkedIn/Instagram session cookie status", "/api/v1/settings/cookies", null],
   ["POST /api/v1/ai/studio — send one prompt to the configured AI", "/api/v1/ai/studio", { prompt: "Say hello in one sentence." }],
+  ["POST /api/v1/clean — clean/reshape data with a prompt (Data Viewer)", "/api/v1/clean", { items: [{ text: "  hello <b>world</b>  ", empty: "" }], prompt: "trim whitespace and strip html" }],
   ["POST /api/v1/profiles/find — find a username everywhere", "/api/v1/profiles/find", { username: "mkbhd" }],
   ["POST /api/v1/runs — start a dataset run (Apify-style)", "/api/v1/runs", { platform: "hackernews", query_type: "search", identifier: "llm agents", max_items: 150 }],
   ["GET /api/v1/runs — list dataset runs", "/api/v1/runs", null],
@@ -833,9 +1249,11 @@ function loadEndpoint() {
 }
 sel.onchange = loadEndpoint; loadEndpoint();
 
+let playgroundLast = null;
 $("#p-go").onclick = async () => {
   const [, path, body] = ENDPOINTS[+sel.value];
   busy($("#p-go"), true, "Sending…");
+  $("#p-dv-row").hidden = true;
   try {
     let payload = null;
     if (body) {
@@ -847,8 +1265,15 @@ $("#p-go").onclick = async () => {
     $("#p-meta").innerHTML = `<span>HTTP ${status}</span><span>${ms} ms</span>` + (data.status ? chip(data.status) : "");
     $("#p-out").hidden = false;
     $("#p-out").textContent = JSON.stringify(data, null, 2);
+    playgroundLast = data;
+    $("#p-dv-row").hidden = extractArray(data).length === 0;
   } catch (e) { $("#p-out").hidden = false; $("#p-out").textContent = String(e); }
   finally { busy($("#p-go"), false); }
+};
+$("#p-view-dv").onclick = () => {
+  const items = extractArray(playgroundLast);
+  if (!items.length) return;
+  openInViewer(items, { source: "playground" });
 };
 
 /* enter-to-submit */

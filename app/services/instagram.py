@@ -2,9 +2,15 @@
 
 i.instagram.com/api/v1/users/web_profile_info/ (with the web app id header)
 returns a profile plus its first 12 posts in one call, keyless. It works from
-many IPs today but Instagram aggressively rate-limits and login-walls, so
-every failure degrades to an honest status=blocked. Single posts use the
-public embed page, which is more lenient. Cache aggressively.
+many IPs today but Instagram aggressively rate-limits and login-walls
+anonymous traffic — confirmed live: HTTP 429 on plain requests. Every failure
+degrades to an honest status=blocked. Single posts use the public embed page,
+which is more lenient. Cache aggressively.
+
+Optionally, pasting your own logged-in `sessionid` cookie (Settings ->
+Session cookies, or SCRAPEX_INSTAGRAM_SESSIONID) makes these requests go out
+authenticated as you instead of anonymous — the same technique tools like
+instaloader use — which is what actually gets past the rate-limit/wall.
 """
 import json
 import re
@@ -14,7 +20,8 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.models import SocialPost, SocialProfile, SocialQueryType, SocialResponse
-from app.services.net import make_async_client
+from app.services import runtime_settings as rt
+from app.services.net import cookie_header, make_async_client
 from app.services.social_base import BEST_EFFORT, PlatformBlocked, SocialPlatform
 
 IG_APP_ID = "936619743392459"  # instagram.com web client id (public, embedded in their JS)
@@ -40,12 +47,23 @@ class InstagramService(SocialPlatform):
     @property
     def client(self) -> httpx.AsyncClient:
         if self._client is None:
-            self._client = make_async_client(headers={
+            headers = {
                 "x-ig-app-id": IG_APP_ID,
                 "Accept": "*/*",
                 "Referer": "https://www.instagram.com/",
-            })
+            }
+            sessionid = rt.get("instagram_sessionid")
+            csrftoken = rt.get("instagram_csrftoken")
+            cookie = cookie_header({"sessionid": sessionid, "csrftoken": csrftoken})
+            if cookie:
+                headers["Cookie"] = cookie
+            if csrftoken:
+                headers["x-csrftoken"] = csrftoken
+            self._client = make_async_client(headers=headers)
         return self._client
+
+    def _authenticated(self) -> bool:
+        return bool(rt.get("instagram_sessionid"))
 
     async def aclose(self) -> None:
         if self._client is not None:
@@ -69,9 +87,13 @@ class InstagramService(SocialPlatform):
             params={"username": username},
         )
         if resp.status_code in (401, 403, 429):
-            raise PlatformBlocked(
-                f"Instagram is rate-limiting/login-walling this IP (HTTP {resp.status_code}). "
+            hint = (
                 "Retry later — responses are cached to minimize hits."
+                if self._authenticated()
+                else "Add your own `sessionid` cookie in Settings -> Session cookies for authenticated (far more reliable) access."
+            )
+            raise PlatformBlocked(
+                f"Instagram is rate-limiting/login-walling this IP (HTTP {resp.status_code}). {hint}"
             )
         resp.raise_for_status()
         if "login" in str(resp.url):

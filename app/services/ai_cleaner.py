@@ -9,11 +9,12 @@ Two layers, so `clean: true` always improves the response:
    the tidied content is summarized into a short plain-language `summary`.
    No provider -> summary stays null; the response is still tidy.
 """
+import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.models import SocialResponse
-from app.services.ai_provider import get_ai_client, resolve_model
+from app.services.ai_provider import AIJSONError, chat_json, get_ai_client, resolve_model
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"[ \t\r\f\v]+")
@@ -139,6 +140,101 @@ async def summarize_multi(query: str, results: Dict[str, SocialResponse]) -> Opt
         return (response.choices[0].message.content or "").strip() or None
     except Exception:
         return None
+
+
+MAX_CLEAN_ITEMS = 60      # rows sent to the AI per request — keeps token usage sane
+MAX_CLEAN_CHARS = 14000   # hard cap on the JSON payload size sent to the AI
+
+
+def _prep_items_for_ai(items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], bool]:
+    """Deterministically tidy + cap items before sending to the AI."""
+    prepped = [tidy_item(dict(item)) for item in items[:MAX_CLEAN_ITEMS]]
+    truncated = len(items) > MAX_CLEAN_ITEMS
+    return prepped, truncated
+
+
+async def clean_with_prompt(items: List[Dict[str, Any]], prompt: str, context: str = "") -> Dict[str, Any]:
+    """Reshape/clean a list of scraped rows per a free-text instruction — the
+    UI's 'Clean with AI' box in the Data Viewer.
+
+    Degrades gracefully: with no AI configured this still returns deterministic
+    cleanup (HTML stripped, empty fields dropped) instead of failing. A
+    malformed AI reply falls back the same way rather than erroring out."""
+    prepped, truncated = _prep_items_for_ai(items)
+
+    client = get_ai_client()
+    if client is None:
+        return {
+            "items": prepped,
+            "notes": (
+                "AI not configured — showing deterministic cleanup only (HTML stripped, "
+                "empty fields dropped). Add an AI provider in Settings to enable prompt-based cleaning."
+            ),
+            "truncated": truncated,
+            "status": "no_llm",
+        }
+
+    payload = json.dumps(prepped, ensure_ascii=False, default=str)
+    if len(payload) > MAX_CLEAN_CHARS:
+        payload = payload[:MAX_CLEAN_CHARS]
+        truncated = True
+
+    try:
+        result = await chat_json(
+            client,
+            model=resolve_model(),
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        'You clean and reshape scraped data rows per the user\'s instructions. '
+                        'Reply with JSON only: {"items": [...], "notes": "one short sentence on what you changed"}. '
+                        "`items` must be a JSON array of flat objects — one per input row, unless the "
+                        "instructions ask you to merge/split/filter rows. Never invent data that isn't in "
+                        "the input; only reshape, rename, filter, dedupe, or summarize what's there."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        (f"Context: {context}\n\n" if context else "")
+                        + f"Instructions: {prompt}\n\n"
+                        + f"Data ({len(prepped)} rows{', truncated' if truncated else ''}):\n{payload}"
+                    ),
+                },
+            ],
+            temperature=0.2,
+            max_tokens=4000,
+        )
+    except AIJSONError:
+        return {
+            "items": prepped,
+            "notes": "The AI's reply wasn't valid JSON, so the original (tidied) data is shown unchanged. Try a simpler instruction.",
+            "truncated": truncated,
+            "status": "error",
+            "error": "AI response was not valid JSON",
+        }
+    except Exception as e:
+        return {
+            "items": prepped,
+            "notes": "Cleaning failed — showing the original (tidied) data.",
+            "truncated": truncated,
+            "status": "error",
+            "error": f"{type(e).__name__}: {e}",
+        }
+
+    cleaned = result.get("items") if isinstance(result, dict) else result
+    if not isinstance(cleaned, list):
+        cleaned = prepped
+    cleaned = [row if isinstance(row, dict) else {"value": row} for row in cleaned]
+    notes = result.get("notes") if isinstance(result, dict) else None
+
+    return {
+        "items": cleaned,
+        "notes": notes if isinstance(notes, str) else None,
+        "truncated": truncated,
+        "status": "ok",
+    }
 
 
 async def summarize_items(platform: str, context: str, items: List[Dict[str, Any]]) -> Optional[str]:

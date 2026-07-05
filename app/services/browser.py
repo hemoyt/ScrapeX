@@ -59,8 +59,17 @@ class BrowserService:
         if self._playwright:
             await self._playwright.stop()
 
-    async def render(self, url: str, wait_until: str = "networkidle") -> Dict[str, Any]:
-        """Render a page with JavaScript and return HTML + screenshot."""
+    async def render(
+        self, url: str, wait_until: str = "networkidle",
+        cookies: Optional[list] = None,
+    ) -> Dict[str, Any]:
+        """Render a page with JavaScript and return HTML + screenshot.
+
+        `cookies` is a list of Playwright cookie dicts (name/value/domain/path)
+        — used to carry a bring-your-own session cookie (e.g. LinkedIn's
+        `li_at`) into the browser context so the page renders logged-in
+        instead of hitting the anonymous login wall.
+        """
         if not self._browser:
             await self.start()
 
@@ -72,6 +81,8 @@ class BrowserService:
             ),
             viewport={"width": 1920, "height": 1080},
         )
+        if cookies:
+            await context.add_cookies(cookies)
 
         page: Page = await context.new_page()
         try:

@@ -11,7 +11,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.auth import require_api_key
 from app.config import settings
 from app.ratelimit import limiter
-from app.routes import scrape, social, extract, health, agent, competitors, datasets, profiles, ai_studio, settings as settings_route
+from app.routes import scrape, social, extract, health, agent, competitors, datasets, profiles, ai_studio, clean, settings as settings_route
 
 app = FastAPI(
     title="ScrapeX",
@@ -73,6 +73,10 @@ app.include_router(
 )
 app.include_router(
     ai_studio.router, prefix="/api/v1", tags=["AI Studio"],
+    dependencies=[Depends(require_api_key)],
+)
+app.include_router(
+    clean.router, prefix="/api/v1", tags=["Data Viewer"],
     dependencies=[Depends(require_api_key)],
 )
 
@@ -144,5 +148,6 @@ async def api_index():
             "agent": "/api/v1/agent",
             "competitors": "/api/v1/competitors",
             "ai_studio": "/api/v1/ai/studio",
+            "clean": "/api/v1/clean",
         },
     }
