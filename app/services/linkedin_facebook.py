@@ -1,35 +1,26 @@
 """LinkedIn + Facebook — honest best-effort public-page scrapers.
 
-Both platforms aggressively login-wall anonymous traffic. These services exist
-to be honest rather than to pretend: they try plain HTTP first, then a
-Playwright render when available, and salvage whatever og:/meta tags survive
-the auth wall. When nothing usable comes back they return status=blocked with
-an explanation — never fabricated data.
+Both platforms aggressively login-wall anonymous traffic — confirmed live:
+LinkedIn returns HTTP 999 (its bot-block code) and Facebook redirects
+anonymous requests straight to a login form. Without credentials that wall is
+not something any scraper can parse around, so these services salvage
+whatever og:/meta tags survive and are honest about the rest.
+
+Optionally, pasting your own logged-in session cookie (Settings -> Session
+cookies, or SCRAPEX_LINKEDIN_COOKIE) lets requests go out authenticated as
+you, which is what actually gets past the wall — same mechanism a real
+browser tab uses when you're signed in. No cookie configured -> unchanged
+best-effort og:/meta-tag behavior.
 """
-import re
 from typing import Any, Dict, Optional
 
 import httpx
-from bs4 import BeautifulSoup
 
 from app.config import settings
 from app.models import SocialProfile, SocialQueryType, SocialResponse
-from app.services.net import make_async_client
+from app.services import runtime_settings as rt
+from app.services.net import cookie_header, make_async_client, og_tags as _og_tags
 from app.services.social_base import BEST_EFFORT, PlatformBlocked, SocialPlatform
-
-
-def _og_tags(html: str) -> Dict[str, str]:
-    soup = BeautifulSoup(html, "html.parser")
-    tags = {}
-    for meta in soup.find_all("meta"):
-        key = meta.get("property") or meta.get("name") or ""
-        if key.startswith(("og:", "twitter:")) or key == "description":
-            content = meta.get("content")
-            if content:
-                tags[key] = content
-    if soup.title and soup.title.get_text(strip=True):
-        tags.setdefault("title", soup.title.get_text(strip=True))
-    return tags
 
 
 class _WalledPlatform(SocialPlatform):
@@ -37,16 +28,27 @@ class _WalledPlatform(SocialPlatform):
 
     WALL_MARKERS: tuple = ()
     HOME: str = ""
+    COOKIE_FIELD: Optional[str] = None   # runtime_settings field holding the session cookie
+    COOKIE_NAME: Optional[str] = None    # cookie name it's sent under, e.g. "li_at"
 
     capabilities = {SocialQueryType.profile: BEST_EFFORT}
 
     def __init__(self):
         self._client: Optional[httpx.AsyncClient] = None
 
+    def _session_cookie(self) -> Optional[str]:
+        if not self.COOKIE_FIELD:
+            return None
+        return rt.get(self.COOKIE_FIELD)
+
     @property
     def client(self) -> httpx.AsyncClient:
         if self._client is None:
-            self._client = make_async_client(headers={"Accept": "text/html"})
+            headers = {"Accept": "text/html"}
+            cookie = self._session_cookie()
+            if cookie and self.COOKIE_NAME:
+                headers["Cookie"] = cookie_header({self.COOKIE_NAME: cookie})
+            self._client = make_async_client(headers=headers)
         return self._client
 
     async def aclose(self) -> None:
@@ -71,8 +73,13 @@ class _WalledPlatform(SocialPlatform):
         try:
             from app.services.browser import BrowserService
             browser = BrowserService(headless=settings.browser_headless, timeout=settings.browser_timeout)
+            cookies = None
+            cookie = self._session_cookie()
+            if cookie and self.COOKIE_NAME:
+                domain = "." + self.HOME.split("://", 1)[-1]
+                cookies = [{"name": self.COOKIE_NAME, "value": cookie, "domain": domain, "path": "/"}]
             try:
-                data = await browser.render(url, wait_until="domcontentloaded")
+                data = await browser.render(url, wait_until="domcontentloaded", cookies=cookies)
                 return data.get("html")
             finally:
                 await browser.stop()
@@ -115,6 +122,11 @@ class _WalledPlatform(SocialPlatform):
         )
 
         if walled or not title:
+            hint = (
+                "Add your own session cookie in Settings -> Session cookies for authenticated access."
+                if self.COOKIE_FIELD and not self._session_cookie()
+                else "For full data use an authenticated integration."
+            )
             return SocialResponse(
                 success=bool(title),
                 platform=self.name,
@@ -125,7 +137,7 @@ class _WalledPlatform(SocialPlatform):
                 error=(
                     f"{self.name} login-walls anonymous access. "
                     + ("Only public og:/meta tags could be salvaged. " if title else "Nothing usable was returned. ")
-                    + "For full data use an authenticated integration."
+                    + hint
                 ),
             )
         return self.partial(
@@ -147,11 +159,16 @@ class _WalledPlatform(SocialPlatform):
 
 class LinkedInService(_WalledPlatform):
     """profile -> public profile slug ("satyanadella"), company ("company/anthropic"),
-    or a full linkedin.com URL. Everything else is honestly unsupported."""
+    or a full linkedin.com URL. Everything else is honestly unsupported.
+
+    Set a `li_at` session cookie (Settings -> Session cookies) to fetch as a
+    logged-in user instead of hitting LinkedIn's anonymous authwall."""
 
     name = "linkedin"
     HOME = "https://www.linkedin.com"
     WALL_MARKERS = ("authwall", "/login", "signup", "join now", "sign in")
+    COOKIE_FIELD = "linkedin_cookie"
+    COOKIE_NAME = "li_at"
 
     def _profile_url(self, identifier: str) -> str:
         ident = identifier.strip()

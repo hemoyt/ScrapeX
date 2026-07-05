@@ -15,7 +15,10 @@ from typing import Any, Dict, Optional
 from app.config import settings
 
 # Fields the UI is allowed to override at runtime.
-FIELDS = ("ai_provider", "ai_api_key", "ai_base_url", "ai_model", "agent_model")
+FIELDS = (
+    "ai_provider", "ai_api_key", "ai_base_url", "ai_model", "agent_model",
+    "linkedin_cookie", "instagram_sessionid", "instagram_csrftoken",
+)
 
 _LOCK = threading.Lock()
 _overrides: Dict[str, Any] = {}

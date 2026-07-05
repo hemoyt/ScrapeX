@@ -31,6 +31,7 @@ docker compose up -d
 </p>
 
 - **Store** — an actor-store-style gallery: one card per platform, pick profile/posts/search, run it or start a full dataset run with CSV export. The Profile Finder sits on top.
+- **Data Viewer** — every result (Competitors, Store, Runs, or your own pasted JSON) opens here as a readable, sortable table instead of a raw JSON blob — search/filter rows, page through large datasets, click a row for full detail, export CSV/JSON. Describe how you want it cleaned in plain language ("keep only name and email, drop duplicates") and the AI reshapes it in place.
 - **Competitors** — type your product, AI discovers the competitors and pulls their social profiles + what Reddit/HN are saying about them. Plus a "track mentions" search across platforms.
 - **Research** — ask a question, get a cited answer with sources and the agent's full tool trace.
 - **Playground** — try every API endpoint with editable request bodies and pretty JSON.
@@ -183,6 +184,24 @@ Scope it with `"platforms": ["twitter", "youtube"]` to check only what you care 
 
 ---
 
+## 🔎 Data Viewer — see and clean your data
+
+Raw JSON is fine for scripts, not for eyeballing 50 rows of scraped posts. Every place that produces a list of results (a Store run, a full dataset run, Competitors, Profile Finder, or the Playground) has a **"View in Data Viewer"** button. Click it and the Data Viewer tab opens with:
+
+- A **table** (auto-generated columns, click any row for full detail) or **cards** view, plus **Raw JSON** for the exact payload.
+- A **filter box** that searches across every field, and pagination for large datasets.
+- A **prompt box**: describe how you want the data cleaned — *"keep only name, email and bio; remove duplicates; one row per person"* — and `POST /api/v1/clean` sends it to your configured AI, which reshapes/filters/dedupes the rows in place (never inventing data that wasn't there). No AI configured? It still deterministically tidies (HTML stripped, empty fields dropped).
+- **Reset to original**, and **CSV / JSON export** of whatever's currently loaded.
+- **Paste JSON…** to load and clean data you already have, independent of any scrape.
+
+```bash
+curl -X POST localhost:8000/api/v1/clean \
+  -H 'Content-Type: application/json' \
+  -d '{"items": [{"name": "Ada Lovelace", "note": "  math <b>pioneer</b>  "}], "prompt": "strip html and trim whitespace"}'
+```
+
+---
+
 ## 🧠 Bring Your Own AI
 
 Every AI feature (research agent, competitor discovery, `/extract`, search answers, AI Studio, AI-clean summaries) runs on **whatever LLM you plug in** — cloud or fully local.
@@ -286,6 +305,17 @@ Every platform speaks the same request shape via `POST /api/v1/social/{platform}
 † TikTok video lists need JS hydration — works where Playwright can run.
 
 Every response includes `status` (`ok | partial | blocked | error`), `source` (which strategy served it), normalized `posts[]`/`profile`, and the raw payload in `data[]`. Check `GET /health` for the capability matrix, or `GET /health?probe=true` for **live** platform reachability from your server.
+
+### LinkedIn & Instagram — bring your own session cookie
+
+Anonymous requests to these two are blocked almost completely by design (confirmed live: LinkedIn returns its HTTP 999 bot-block, Instagram rate-limits/redirects to login) — that's not a bug ScrapeX can parse around. What actually works is the same thing a signed-in browser tab does: send the request with **your own logged-in session cookie**.
+
+Open **Settings → Session cookies** in the web UI (or `POST /api/v1/settings/cookies`) and paste:
+
+- **LinkedIn**: the `li_at` cookie — DevTools → Application/Storage → Cookies → `linkedin.com` → `li_at`.
+- **Instagram**: the `sessionid` cookie (and optionally `csrftoken`) — DevTools → Cookies → `instagram.com` → `sessionid`.
+
+With a cookie set, requests go out authenticated as you instead of hitting the wall — LinkedIn also falls back to a cookie-carrying Playwright render when the plain HTTP fetch is still walled. No cookie configured → unchanged best-effort og:/meta-tag behavior, same as before. These are your own account's credentials, stored server-side with the same trust model as the AI API key — treat them like a password (`SCRAPEX_LINKEDIN_COOKIE` / `SCRAPEX_INSTAGRAM_SESSIONID` / `SCRAPEX_INSTAGRAM_CSRFTOKEN` env vars work too).
 
 The same matrix as a picture — of the 40 platform × endpoint combinations, half are fully reliable and only 2 are hard-blocked (Twitter timelines/search, until you point `SCRAPEX_NITTER_INSTANCES` at a live mirror):
 

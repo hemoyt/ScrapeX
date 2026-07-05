@@ -319,3 +319,20 @@ class AIStudioResponse(BaseModel):
     usage: Dict[str, int] = {}   # prompt_tokens, completion_tokens
     status: str = "ok"           # ok | no_llm | error
     error: Optional[str] = None
+
+
+class CleanRequest(BaseModel):
+    """Reshape/clean any list of scraped items with a free-text instruction,
+    e.g. 'keep only name and email, drop duplicates, one line per person'."""
+    items: List[Dict[str, Any]] = Field(..., min_length=1, description="Rows to clean (from a run, a scrape, or pasted JSON)")
+    prompt: str = Field(..., min_length=1, description="Plain-language instructions for how to clean/reshape the data")
+    context: Optional[str] = Field(default=None, description="Short label for what this data is, e.g. platform or query")
+
+
+class CleanResponse(BaseModel):
+    success: bool
+    items: List[Dict[str, Any]] = []   # cleaned/reshaped rows
+    notes: Optional[str] = None        # short explanation of what changed
+    truncated: bool = False            # true if only a prefix of the input was sent to the AI
+    status: str = "ok"                 # ok | no_llm | error
+    error: Optional[str] = None

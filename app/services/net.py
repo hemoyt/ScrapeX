@@ -1,8 +1,9 @@
 """Shared HTTP client helpers — browser-like headers, retries, proxy support."""
 import asyncio
-from typing import Optional
+from typing import Dict, Optional
 
 import httpx
+from bs4 import BeautifulSoup
 
 from app.config import settings
 
@@ -60,3 +61,25 @@ async def get_with_retries(
             if attempt < retries:
                 await asyncio.sleep(backoff * (2 ** attempt))
     raise last_exc  # type: ignore[misc]
+
+
+def cookie_header(pairs: Dict[str, Optional[str]]) -> Optional[str]:
+    """Build a `Cookie:` header value from {name: value}, skipping unset ones."""
+    parts = [f"{name}={value}" for name, value in pairs.items() if value]
+    return "; ".join(parts) if parts else None
+
+
+def og_tags(html: str) -> Dict[str, str]:
+    """Salvage og:/twitter: meta tags (and <title>) from an HTML page —
+    usually the only thing left standing behind a login wall."""
+    soup = BeautifulSoup(html, "html.parser")
+    tags: Dict[str, str] = {}
+    for meta in soup.find_all("meta"):
+        key = meta.get("property") or meta.get("name") or ""
+        if key.startswith(("og:", "twitter:")) or key == "description":
+            content = meta.get("content")
+            if content:
+                tags[key] = content
+    if soup.title and soup.title.get_text(strip=True):
+        tags.setdefault("title", soup.title.get_text(strip=True))
+    return tags
