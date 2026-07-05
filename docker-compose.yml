@@ -8,7 +8,7 @@ services:
       - "8000:8000"
     environment:
       - SCRAPEX_OPENROUTER_API_KEY=${SCRAPEX_OPENROUTER_API_KEY:-}
-      - SCRAPEX_AI_MODEL=${SCRAPEX_AI_MODEL:-google/gemini-flash-1.5}
+      - SCRAPEX_AI_MODEL=${SCRAPEX_AI_MODEL:-}
       - SCRAPEX_DEBUG=${SCRAPEX_DEBUG:-false}
     volumes:
       - ./app:/app/app  # Hot reload for development

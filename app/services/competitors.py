@@ -6,7 +6,6 @@ concurrently — social profiles (Twitter/YouTube) and recent mentions
 (Reddit / Hacker News). Degrades to status="no_llm" without an OpenRouter key.
 """
 import asyncio
-import json
 from typing import Any, Dict, List, Optional
 
 from openai import AsyncOpenAI
@@ -97,10 +96,11 @@ class CompetitorFinder:
             f"- {r['title']} ({r['url']})\n  {r['snippet']}" for r in results
         ) or "(no search results available — rely on well-known facts only)"
 
-        from app.services.ai_provider import resolve_model
+        from app.services.ai_provider import chat_json, resolve_model
         from app.services import runtime_settings as rt
 
-        response = await self.client.chat.completions.create(
+        data = await chat_json(
+            self.client,
             model=rt.get("agent_model") or resolve_model(),
             messages=[{
                 "role": "user",
@@ -108,9 +108,7 @@ class CompetitorFinder:
             }],
             temperature=0.1,
             max_tokens=1500,
-            response_format={"type": "json_object"},
         )
-        data = json.loads(response.choices[0].message.content or "{}")
         competitors = []
         for item in (data.get("competitors") or [])[:limit]:
             if not item.get("name"):

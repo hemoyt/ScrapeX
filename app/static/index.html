@@ -30,26 +30,34 @@
     border-bottom: 1px solid var(--border); position: sticky; top: 0;
     background: rgba(10, 10, 12, .86); backdrop-filter: blur(10px); z-index: 10;
   }
-  .logo { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: .01em; white-space: nowrap; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: .01em; white-space: nowrap; flex: none; }
   .logo .mark { width: 9px; height: 9px; background: var(--accent); border-radius: 2px; box-shadow: 0 0 0 3px var(--accent-soft); }
-  nav { display: flex; gap: 4px; flex: 1; height: 100%; }
+  nav {
+    display: flex; gap: 4px; flex: 1; height: 100%; min-width: 0;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
   nav button {
     background: none; border: 0; color: var(--ink-3); font: inherit; font-size: 13.5px; font-weight: 500;
-    padding: 0 13px; cursor: pointer; height: 100%;
+    padding: 0 13px; cursor: pointer; height: 100%; flex: none; white-space: nowrap;
     border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s ease;
   }
   nav button:hover { color: var(--ink); }
   nav button.active { color: var(--ink); border-bottom-color: var(--accent); }
-  .hstatus { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
+  .hstatus { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; flex: none; white-space: nowrap; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
   .dot.ok { background: var(--good); } .dot.bad { background: var(--bad); }
   .keybtn {
     display: inline-flex; align-items: center; gap: 6px;
     background: transparent; color: var(--ink-2); border: 1px solid var(--border-2);
     border-radius: 7px; padding: 6px 12px; font: inherit; font-size: 12.5px; cursor: pointer;
-    transition: color .15s, border-color .15s;
+    transition: color .15s, border-color .15s; flex: none; white-space: nowrap;
   }
   .keybtn:hover { color: var(--ink); border-color: var(--ink-3); text-decoration: none; }
+  @media (max-width: 720px) {
+    header { gap: 14px; padding: 0 16px; }
+    #htext { display: none; }
+  }
 
   main { max-width: 1080px; margin: 0 auto; padding: 44px 28px 110px; }
   section[hidden] { display: none; }
@@ -174,6 +182,7 @@
     <button data-tab="competitors" class="active">Competitors</button>
     <button data-tab="store">Store</button>
     <button data-tab="research">Research</button>
+    <button data-tab="studio">AI Studio</button>
     <button data-tab="playground">Playground</button>
     <button data-tab="settings">Settings</button>
   </nav>
@@ -253,7 +262,7 @@
   <!-- ============ SETTINGS ============ -->
   <section id="tab-settings" hidden>
     <h1>Settings</h1>
-    <p class="sub">Set your AI provider and API key right here — no server restart, no <code>.env</code> editing. Saved on the server and used for the research agent, competitor discovery, AI extraction, and the <strong>AI clean</strong> summaries.</p>
+    <p class="sub">Set your AI provider and API key right here — no server restart, no <code>.env</code> editing. Used by the research agent, competitor discovery, AI extraction, AI Studio, and <strong>AI clean</strong> summaries.</p>
 
     <div class="card" style="max-width:640px">
       <h3>AI provider</h3>
@@ -266,8 +275,9 @@
       <input type="password" id="set-key" placeholder="Paste your API key">
       <div class="muted" id="set-key-hint"></div>
 
-      <label class="muted">Model <span id="set-model-def"></span></label>
-      <input type="text" id="set-model" placeholder="Leave blank for the provider default">
+      <label class="muted">Model</label>
+      <select id="set-model-select"></select>
+      <input type="text" id="set-model-custom" placeholder="Model ID" hidden style="margin-top:8px">
 
       <div id="set-baseurl-wrap" hidden>
         <label class="muted">Base URL (for custom / self-hosted endpoints)</label>
@@ -282,7 +292,33 @@
       <div id="set-out"></div>
     </div>
 
-    <p class="muted" style="margin-top:16px;max-width:640px">Local providers (<code>ollama</code>, <code>lmstudio</code>) need no key — just point ScrapeX at them. Your key is stored on the server in <code>.scrapex_settings.json</code> (same trust level as an <code>.env</code> file). If your API is public, set <code>SCRAPEX_API_KEYS</code> so only you can change this.</p>
+    <p class="muted" style="margin-top:16px;max-width:640px">Local providers (<code>ollama</code>, <code>lmstudio</code>) need no key — just point ScrapeX at them. Pick "Custom model ID…" if your model isn't in the list. Your key is stored on the server in <code>.scrapex_settings.json</code> (same trust level as an <code>.env</code> file). If your API is public, set <code>SCRAPEX_API_KEYS</code> so only you can change this.</p>
+  </section>
+
+  <!-- ============ AI STUDIO ============ -->
+  <section id="tab-studio" hidden>
+    <h1>AI Studio</h1>
+    <p class="sub">Send one prompt straight to your configured AI provider — no tools, no agent loop. The fastest way to confirm a provider/model actually works, or to try one before using it elsewhere.</p>
+
+    <label class="muted">System prompt (optional)</label>
+    <textarea id="s-system" rows="2" placeholder="e.g. Answer in one short paragraph."></textarea>
+
+    <label class="muted" style="margin-top:12px">Prompt</label>
+    <textarea id="s-prompt" rows="5" style="font-family:inherit;font-size:15px" placeholder="Ask it anything…"></textarea>
+
+    <div class="row" style="margin-top:10px">
+      <select id="s-model" class="grow" title="Model for this call only — doesn't change your saved Settings"></select>
+      <input type="text" id="s-model-custom" placeholder="Model ID" hidden style="max-width:220px">
+      <label class="muted" style="display:flex;align-items:center;gap:6px">Temp
+        <input type="text" id="s-temp" value="0.7" style="width:56px;text-align:center">
+      </label>
+      <label class="muted" style="display:flex;align-items:center;gap:6px">Max tokens
+        <input type="text" id="s-maxtok" value="1024" style="width:70px;text-align:center">
+      </label>
+      <span class="grow"></span>
+      <button class="btn" id="s-go">Send</button>
+    </div>
+    <div id="s-out"></div>
   </section>
 
   <!-- ============ PLAYGROUND ============ -->
@@ -358,7 +394,33 @@ $("#tabs").addEventListener("click", (e) => {
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b === btn));
   document.querySelectorAll("main > section").forEach(s => s.hidden = s.id !== "tab-" + btn.dataset.tab);
   if (btn.dataset.tab === "settings") loadSettings();
+  if (btn.dataset.tab === "studio") loadStudioModels();
 });
+
+/* ---------- model picker (multiple choice, with a "custom" escape hatch) ---------- */
+function populateModelSelect(selectEl, customInputEl, models, currentValue, defaultLabel) {
+  selectEl.innerHTML = "";
+  selectEl.add(new Option(defaultLabel || "Use provider default", ""));
+  (models || []).forEach(m => selectEl.add(new Option(m.label, m.id)));
+  selectEl.add(new Option("Custom model ID…", "__custom__"));
+  const known = (models || []).some(m => m.id === currentValue);
+  if (currentValue && !known) {
+    selectEl.value = "__custom__";
+    customInputEl.hidden = false;
+    customInputEl.value = currentValue;
+  } else {
+    selectEl.value = known ? currentValue : "";
+    customInputEl.hidden = true;
+    customInputEl.value = "";
+  }
+  selectEl.onchange = () => {
+    customInputEl.hidden = selectEl.value !== "__custom__";
+    if (!customInputEl.hidden) customInputEl.focus();
+  };
+}
+function selectedModel(selectEl, customInputEl) {
+  return selectEl.value === "__custom__" ? customInputEl.value.trim() : selectEl.value;
+}
 
 /* ---------- health ---------- */
 async function refreshHealth() {
@@ -635,9 +697,11 @@ function renderSettings(s) {
   $("#set-key-label").textContent = meta.needs_key ? "API key" : "API key (not needed for this provider)";
   $("#set-key").placeholder = s.api_key_set ? `Saved: ${s.api_key_hint} — type to replace` : (meta.needs_key ? "Paste your API key" : "Not required");
   $("#set-key").value = "";
-  $("#set-model").value = s.from_ui?.ai_model ? s.model : "";
-  $("#set-model").placeholder = `Default: ${meta.default_model || s.model}`;
-  $("#set-model-def").textContent = "";
+  populateModelSelect(
+    $("#set-model-select"), $("#set-model-custom"), meta.models,
+    s.from_ui?.ai_model ? s.model : "",
+    `Use provider default (${meta.default_model || ""})`
+  );
   $("#set-baseurl-wrap").hidden = s.provider !== "custom";
   $("#set-baseurl").value = s.from_ui?.ai_base_url ? (s.base_url || "") : "";
   const badge = s.enabled ? chip("ok") : chip("error");
@@ -652,12 +716,21 @@ async function loadSettings() {
 }
 
 $("#set-provider").onchange = () => {
-  // reflect the new provider's key/model hints without saving yet
-  if (SET_STATE) { const s = { ...SET_STATE, provider: $("#set-provider").value, from_ui: {} }; renderSettings(s); }
+  // reflect the new provider's key/model hints without saving yet — don't
+  // carry over the old provider's active model/enabled state, or the
+  // preview reads as if the switch already happened.
+  if (!SET_STATE) return;
+  const provider = $("#set-provider").value;
+  const meta = (SET_STATE.providers || {})[provider] || {};
+  renderSettings({
+    ...SET_STATE, provider, from_ui: {},
+    model: meta.default_model || "", api_key_set: false, api_key_hint: null,
+    enabled: !meta.needs_key,
+  });
 };
 
 $("#set-save").onclick = async () => {
-  const body = { ai_provider: $("#set-provider").value, ai_model: $("#set-model").value.trim() };
+  const body = { ai_provider: $("#set-provider").value, ai_model: selectedModel($("#set-model-select"), $("#set-model-custom")) };
   const key = $("#set-key").value.trim();
   if (key) body.ai_api_key = key;             // only send when the user typed one
   if ($("#set-provider").value === "custom") body.ai_base_url = $("#set-baseurl").value.trim();
@@ -665,6 +738,7 @@ $("#set-save").onclick = async () => {
   try {
     const { data } = await api("/api/v1/settings/ai", body);
     renderSettings(data);
+    studioModelsLoaded = false;
     $("#set-out").innerHTML = `<div class="banner"><div>✓ Saved. Active provider: <strong>${esc(data.provider)}</strong>.</div></div>`;
     refreshHealth();
   } catch (e) { $("#set-out").innerHTML = errBanner(e.message); }
@@ -688,10 +762,45 @@ $("#set-clear").onclick = async () => {
   try {
     const { data } = await api("/api/v1/settings/ai/clear", {});
     renderSettings(data);
+    studioModelsLoaded = false;
     $("#set-out").innerHTML = `<div class="banner"><div>Reset — now using the server environment variables.</div></div>`;
     refreshHealth();
   } catch (e) { $("#set-out").innerHTML = errBanner(e.message); }
   finally { busy($("#set-clear"), false); }
+};
+
+/* ============ AI STUDIO ============ */
+let studioModelsLoaded = false;
+async function loadStudioModels() {
+  if (studioModelsLoaded) return; studioModelsLoaded = true;
+  try {
+    const { data } = await api("/api/v1/settings/ai", null, "GET");
+    const meta = (data.providers || {})[data.provider] || {};
+    populateModelSelect($("#s-model"), $("#s-model-custom"), meta.models, "", `Use configured default (${data.model})`);
+  } catch { /* select still usable with just "custom" */ populateModelSelect($("#s-model"), $("#s-model-custom"), [], "", "Use configured default"); }
+}
+
+$("#s-go").onclick = async () => {
+  const prompt = $("#s-prompt").value.trim();
+  if (!prompt) return $("#s-prompt").focus();
+  busy($("#s-go"), true, "Thinking…");
+  $("#s-out").innerHTML = "";
+  try {
+    const { data } = await api("/api/v1/ai/studio", {
+      prompt,
+      system: $("#s-system").value.trim() || undefined,
+      model: selectedModel($("#s-model"), $("#s-model-custom")) || undefined,
+      temperature: parseFloat($("#s-temp").value),
+      max_tokens: parseInt($("#s-maxtok").value, 10),
+    });
+    if (data.status === "no_llm") { $("#s-out").innerHTML = keyBanner(data.error); return; }
+    if (!data.success) { $("#s-out").innerHTML = errBanner(data.error); return; }
+    const tokens = data.usage?.prompt_tokens != null
+      ? `<span>${data.usage.prompt_tokens} in + ${data.usage.completion_tokens} out tokens</span>` : "";
+    $("#s-out").innerHTML = `<div class="answer">${md(data.reply || "(empty reply)", 0)}</div>
+      <div class="outmeta"><span>${esc(data.provider)} · ${esc(data.model)}</span>${tokens}</div>`;
+  } catch (e) { $("#s-out").innerHTML = errBanner(e.message); }
+  finally { busy($("#s-go"), false); }
 };
 
 /* ============ PLAYGROUND ============ */
@@ -706,6 +815,7 @@ const ENDPOINTS = [
   ["POST /api/v1/social/instagram — profile", "/api/v1/social/instagram", { query_type: "profile", identifier: "instagram" }],
   ["POST /api/v1/social/tiktok — profile", "/api/v1/social/tiktok", { query_type: "profile", identifier: "tiktok" }],
   ["GET /api/v1/settings/ai — current AI provider config", "/api/v1/settings/ai", null],
+  ["POST /api/v1/ai/studio — send one prompt to the configured AI", "/api/v1/ai/studio", { prompt: "Say hello in one sentence." }],
   ["POST /api/v1/profiles/find — find a username everywhere", "/api/v1/profiles/find", { username: "mkbhd" }],
   ["POST /api/v1/runs — start a dataset run (Apify-style)", "/api/v1/runs", { platform: "hackernews", query_type: "search", identifier: "llm agents", max_items: 150 }],
   ["GET /api/v1/runs — list dataset runs", "/api/v1/runs", null],
@@ -745,6 +855,7 @@ $("#p-go").onclick = async () => {
 $("#c-product").addEventListener("keydown", e => e.key === "Enter" && $("#c-go").click());
 $("#m-query").addEventListener("keydown", e => e.key === "Enter" && $("#m-go").click());
 $("#r-query").addEventListener("keydown", e => e.key === "Enter" && !e.shiftKey && ($("#r-go").click(), e.preventDefault()));
+$("#s-prompt").addEventListener("keydown", e => e.key === "Enter" && !e.shiftKey && ($("#s-go").click(), e.preventDefault()));
 </script>
 </body>
 </html>

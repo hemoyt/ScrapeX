@@ -1,8 +1,7 @@
 """AI-powered data extraction via any configured AI provider."""
-import json
 from typing import Optional, Dict, Any
 
-from app.services.ai_provider import disabled_reason, get_ai_client, resolve_model
+from app.services.ai_provider import AIJSONError, chat_json, disabled_reason, get_ai_client, resolve_model
 
 
 class AIExtractor:
@@ -45,7 +44,8 @@ PAGE CONTENT:
 Return ONLY valid JSON with the extracted data."""
 
         try:
-            response = await self.client.chat.completions.create(
+            return await chat_json(
+                self.client,
                 model=resolve_model(),
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -53,13 +53,8 @@ Return ONLY valid JSON with the extracted data."""
                 ],
                 temperature=0.1,
                 max_tokens=2000,
-                response_format={"type": "json_object"},
             )
-
-            raw = response.choices[0].message.content
-            return json.loads(raw)
-
-        except json.JSONDecodeError:
-            return {"raw_output": raw, "error": "Failed to parse AI response as JSON"}
+        except AIJSONError as e:
+            return {"raw_output": e.raw, "error": "Failed to parse AI response as JSON"}
         except Exception as e:
             return {"error": str(e)}
