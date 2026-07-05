@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.services import runtime_settings
 from app.services.ai_provider import (
+    MODELS,
     PROVIDERS,
     disabled_reason,
     get_ai_client,
@@ -44,7 +45,11 @@ def _state() -> dict:
     # which fields are set from the UI vs inherited from the environment
     info["from_ui"] = {f: runtime_settings.is_overridden(f) for f in runtime_settings.FIELDS}
     info["providers"] = {
-        name: {"needs_key": key_required, "default_model": default_model}
+        name: {
+            "needs_key": key_required,
+            "default_model": default_model,
+            "models": MODELS.get(name, []),
+        }
         for name, (_, key_required, default_model) in PROVIDERS.items()
     }
     return info

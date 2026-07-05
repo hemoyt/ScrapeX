@@ -301,3 +301,21 @@ class AgentResponse(BaseModel):
     usage: Dict[str, int] = {}         # prompt_tokens, completion_tokens, llm_calls, tool_calls
     status: str = "ok"                 # ok | no_llm | max_steps_reached | error
     error: Optional[str] = None
+
+
+class AIStudioRequest(BaseModel):
+    prompt: str = Field(..., description="Message to send to the model")
+    system: Optional[str] = Field(default=None, description="Optional system prompt")
+    model: Optional[str] = Field(default=None, description="Override the configured model for this call")
+    temperature: float = Field(default=0.7, ge=0, le=2)
+    max_tokens: int = Field(default=1024, ge=1, le=8000)
+
+
+class AIStudioResponse(BaseModel):
+    success: bool
+    provider: str
+    model: str
+    reply: Optional[str] = None
+    usage: Dict[str, int] = {}   # prompt_tokens, completion_tokens
+    status: str = "ok"           # ok | no_llm | error
+    error: Optional[str] = None

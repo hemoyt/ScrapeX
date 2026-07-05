@@ -38,12 +38,12 @@ def test_legacy_openrouter_key_still_works():
 
 @pytest.mark.parametrize("provider,base_fragment,default_model", [
     ("anthropic", "api.anthropic.com", "claude-sonnet-5"),
-    ("openai", "api.openai.com", "gpt-4o-mini"),
-    ("deepseek", "api.deepseek.com", "deepseek-chat"),
-    ("xai", "api.x.ai", "grok-3-mini"),
-    ("grok", "api.x.ai", "grok-3-mini"),
-    ("groq", "api.groq.com", "llama-3.3-70b-versatile"),
-    ("mistral", "api.mistral.ai", "mistral-small-latest"),
+    ("openai", "api.openai.com", "gpt-5.4-mini"),
+    ("deepseek", "api.deepseek.com", "deepseek-v4-flash"),
+    ("xai", "api.x.ai", "grok-4.3"),
+    ("grok", "api.x.ai", "grok-4.3"),
+    ("groq", "api.groq.com", "openai/gpt-oss-20b"),
+    ("mistral", "api.mistral.ai", "mistral-large-latest"),
 ])
 def test_cloud_provider_presets(provider, base_fragment, default_model):
     settings.ai_provider = provider
@@ -102,3 +102,69 @@ def test_health_exposes_provider_not_key(client):
     assert body["ai"]["provider"] == "ollama"
     assert body["ai"]["enabled"] is True
     assert "super-secret" not in str(body)
+
+
+def test_untouched_openrouter_model_uses_current_default_not_stale_legacy():
+    # Regression: an untouched model field used to resolve to the historical
+    # config default (google/gemini-flash-1.5) for openrouter specifically,
+    # even as that model aged out of usefulness. It must now resolve like
+    # every other provider — to PROVIDERS' current default.
+    settings.ai_provider = "openrouter"
+    settings.ai_api_key = "sk-or-test"
+    settings.ai_model = "google/gemini-flash-1.5"
+    assert ai_provider.resolve_model() == ai_provider.PROVIDERS["openrouter"][2]
+    assert ai_provider.resolve_model() != "google/gemini-flash-1.5"
+
+
+def test_models_catalog_covers_every_cloud_provider():
+    for name, (base_url, key_required, default_model) in ai_provider.PROVIDERS.items():
+        if name in ("custom", "lmstudio"):  # no fixed catalog — user names their own local model
+            continue
+        models = ai_provider.MODELS.get(name)
+        assert models, f"no curated model list for provider '{name}'"
+        ids = [m["id"] for m in models]
+        assert default_model in ids, f"{name}'s default_model isn't offered in its own MODELS list"
+
+
+class _FakeChatClient:
+    """Minimal stand-in for AsyncOpenAI's chat.completions.create()."""
+
+    def __init__(self, replies, fail_on_response_format=False):
+        self._replies = list(replies)
+        self.calls = []
+        self.fail_on_response_format = fail_on_response_format
+        self.chat = type("_C", (), {"completions": self})()
+
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.fail_on_response_format and "response_format" in kwargs:
+            raise ValueError("response_format is not supported by this endpoint")
+        content = self._replies.pop(0)
+        message = type("_M", (), {"content": content})()
+        return type("_R", (), {"choices": [type("_Ch", (), {"message": message})()]})()
+
+
+@pytest.mark.asyncio
+async def test_chat_json_parses_fenced_json():
+    client = _FakeChatClient(['Sure, here you go:\n```json\n{"a": 1}\n```'])
+    result = await ai_provider.chat_json(client, model="m", messages=[])
+    assert result == {"a": 1}
+
+
+@pytest.mark.asyncio
+async def test_chat_json_retries_without_response_format():
+    # The first attempt (with response_format) raises before consuming a
+    # reply; only the fallback attempt (without it) pops one.
+    client = _FakeChatClient(['{"ok": true}'], fail_on_response_format=True)
+    result = await ai_provider.chat_json(client, model="m", messages=[])
+    assert result == {"ok": True}
+    assert "response_format" not in client.calls[-1]
+    assert len(client.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_chat_json_raises_ai_json_error_on_garbage():
+    client = _FakeChatClient(["I cannot produce JSON for that, sorry."])
+    with pytest.raises(ai_provider.AIJSONError) as exc:
+        await ai_provider.chat_json(client, model="m", messages=[])
+    assert "sorry" in exc.value.raw

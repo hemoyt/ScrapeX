@@ -280,6 +280,26 @@ class ScrapeX:
         resp.raise_for_status()
         return resp.json()
 
+    def studio(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
+    ) -> Dict[str, Any]:
+        """Send one prompt straight to the configured AI provider — no tools,
+        no agent loop. Returns {success, provider, model, reply, usage, status}."""
+        resp = self.client.post(
+            f"{self.base_url}/api/v1/ai/studio",
+            json={
+                "prompt": prompt, "system": system, "model": model,
+                "temperature": temperature, "max_tokens": max_tokens,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     def twitter(self, username: str, max_tweets: int = 10) -> Dict[str, Any]:
         """Get tweets from a Twitter/X user."""
         resp = self.client.post(

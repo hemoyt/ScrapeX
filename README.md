@@ -185,9 +185,9 @@ Scope it with `"platforms": ["twitter", "youtube"]` to check only what you care 
 
 ## 🧠 Bring Your Own AI
 
-Every AI feature (research agent, competitor discovery, `/extract`, search answers, AI-clean summaries) runs on **whatever LLM you plug in** — cloud or fully local.
+Every AI feature (research agent, competitor discovery, `/extract`, search answers, AI Studio, AI-clean summaries) runs on **whatever LLM you plug in** — cloud or fully local.
 
-**Easiest: set it in the app.** Open the web UI → **Settings** tab, pick a provider, paste your API key, Save. No env vars, no restart — it takes effect immediately and persists on the server.
+**Easiest: set it in the app.** Open the web UI → **Settings** tab, pick a provider, paste your API key, pick a model from the dropdown, Save. No env vars, no restart, no guessing a model ID — every provider ships a curated, up-to-date list of models to choose from (with a "Custom model ID…" escape hatch for anything not listed). It takes effect immediately and persists on the server.
 
 <p align="center">
   <img src="docs/screenshots/settings.png" alt="ScrapeX Settings tab — pick an AI provider and paste your API key right in the app, no restart" width="820">
@@ -202,20 +202,30 @@ SCRAPEX_AI_API_KEY=sk-ant-...
 
 (A key set in the Settings tab overrides the env var; "Reset to env" in the tab drops it again.)
 
-| Provider | `SCRAPEX_AI_PROVIDER` | Key needed | Example `SCRAPEX_AI_MODEL` |
+| Provider | `SCRAPEX_AI_PROVIDER` | Key needed | Default `SCRAPEX_AI_MODEL` |
 |---|---|:--:|---|
-| OpenRouter (default) | `openrouter` | ✅ | `google/gemini-flash-1.5` |
+| OpenRouter (default) | `openrouter` | ✅ | `anthropic/claude-sonnet-5` |
 | Anthropic | `anthropic` | ✅ | `claude-sonnet-5` |
-| OpenAI | `openai` | ✅ | `gpt-4o-mini` |
-| DeepSeek | `deepseek` | ✅ | `deepseek-chat` |
-| xAI / Grok | `xai` or `grok` | ✅ | `grok-3-mini` |
-| Groq | `groq` | ✅ | `llama-3.3-70b-versatile` |
-| Mistral | `mistral` | ✅ | `mistral-small-latest` |
+| OpenAI | `openai` | ✅ | `gpt-5.4-mini` |
+| DeepSeek | `deepseek` | ✅ | `deepseek-v4-flash` |
+| xAI / Grok | `xai` or `grok` | ✅ | `grok-4.3` |
+| Groq | `groq` | ✅ | `openai/gpt-oss-20b` |
+| Mistral | `mistral` | ✅ | `mistral-large-latest` |
 | **Ollama (local, free)** | `ollama` | ❌ | `llama3.1:8b` |
 | **LM Studio (local, free)** | `lmstudio` | ❌ | whatever you loaded |
 | Anything else (vLLM, llama.cpp, LiteLLM…) | `custom` + `SCRAPEX_AI_BASE_URL` | optional | your model id |
 
-They all speak the OpenAI chat-completions dialect, so one client covers every row. `GET /health` shows which brain is currently plugged in (`"ai": {"provider": ..., "model": ..., "enabled": ...}`) — the web UI displays it in the header. The old `SCRAPEX_OPENROUTER_API_KEY` still works unchanged.
+They all speak the OpenAI chat-completions dialect, so one client covers every row. `GET /health` shows which brain is currently plugged in (`"ai": {"provider": ..., "model": ..., "enabled": ...}`) — the web UI displays it in the header. The old `SCRAPEX_OPENROUTER_API_KEY` still works unchanged. `GET /api/v1/settings/ai` also returns each provider's curated model list under `providers.<name>.models` — that's what powers the Settings dropdown, and it's just as usable from a script.
+
+### AI Studio — confirm it's actually working
+
+Open the web UI → **AI Studio** tab (or `POST /api/v1/ai/studio`) to send one prompt straight to your configured provider — no tools, no agent loop, just a direct round trip. It's the fastest way to confirm a provider/API key/model combination actually works before pointing the research agent or competitor discovery at it, and to try a model from the picker before committing to it in Settings.
+
+```bash
+curl -X POST localhost:8000/api/v1/ai/studio \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt": "Say hello in one sentence.", "temperature": 0.7}'
+```
 
 ### Clean output — pass results through the AI before they come out
 
@@ -354,7 +364,8 @@ flowchart LR
 | `POST` | `/api/v1/runs/{id}/abort` | 🆕 Abort a running job (keeps collected items) |
 | `GET` | `/api/v1/datasets/{id}/items` | 🆕 Page/export a dataset (`format=json\|ndjson\|csv`) |
 | `POST` | `/api/v1/profiles/find` | 🆕 Find a username across every platform at once |
-| `GET`/`POST` | `/api/v1/settings/ai` | 🆕 Read/set the AI provider & key at runtime (also `/settings/ai/test`, `/clear`) |
+| `GET`/`POST` | `/api/v1/settings/ai` | 🆕 Read/set the AI provider, key & model at runtime (also `/settings/ai/test`, `/clear`) |
+| `POST` | `/api/v1/ai/studio` | 🆕 Send one prompt straight to the configured AI — no tools, no agent loop |
 | `POST` | `/api/v1/search` | Web search (DDG → Startpage fallback), optional AI answer |
 | `POST` | `/api/v1/scrape` | Scrape any URL → clean markdown, metadata, links |
 | `POST` | `/api/v1/crawl` | Crawl a site (background job) |
@@ -376,6 +387,10 @@ client = ScrapeX(base_url="http://localhost:8000")  # api_key="sx-..." if auth i
 r = client.agent("What are people saying about the latest Claude release?", depth="advanced")
 print(r["answer"])          # markdown with [1][2] citations
 print(r["sources"])         # the URLs behind those citations
+
+# AI Studio — one prompt, straight to whatever provider you've configured
+reply = client.studio("Say hello in one sentence.")
+print(reply["reply"], reply["model"])
 
 # Competitor discovery + analysis
 report = client.competitors("Notion (note-taking app)")
@@ -487,11 +502,13 @@ ScrapeX/
 │   │   ├── social.py            # /social/{platform}, /social/search
 │   │   ├── datasets.py          # /runs, /datasets — Apify-style jobs & exports
 │   │   ├── profiles.py          # /profiles/find — username across all platforms
-│   │   ├── settings.py          # /settings/ai — set the AI provider/key from the UI
+│   │   ├── settings.py          # /settings/ai — set the AI provider/key/model from the UI
+│   │   ├── ai_studio.py         # /ai/studio — one-off prompt/response console
 │   │   └── extract.py, health.py
 │   ├── services/
 │   │   ├── agent.py             # ResearchAgent tool loop
-│   │   ├── ai_provider.py       # bring-your-own-AI: anthropic/openai/.../ollama/custom
+│   │   ├── ai_provider.py       # bring-your-own-AI: anthropic/openai/.../ollama/custom + model catalog
+│   │   ├── ai_studio.py         # single-shot prompt runner behind /ai/studio
 │   │   ├── ai_cleaner.py        # clean pipeline: tidy + AI summary (clean=true)
 │   │   ├── runtime_settings.py  # UI-set overrides persisted to .scrapex_settings.json
 │   │   ├── datasets.py          # run worker: cursor pagination, time budget, dedupe
