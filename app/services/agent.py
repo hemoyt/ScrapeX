@@ -307,6 +307,158 @@ class ResearchAgent:
             status=status,
         )
 
+    # --- streaming loop (emits events for the chat UI to render live) ---
+
+    @staticmethod
+    def _infer_status(name: str, result: str) -> str:
+        """Coarse status for a tool result, used only to colour the UI trace."""
+        low = result.lower()
+        if result.startswith(f"Tool {name} failed") or "failed:" in low[:40]:
+            return "error"
+        if "status=blocked" in low:
+            return "blocked"
+        if (
+            "no web results" in low
+            or "returned no posts" in low
+            or "no results" in low
+            or "status=empty" in low
+        ):
+            return "partial"
+        return "ok"
+
+    async def run_stream(self, req: AgentRequest):
+        """Same loop as run(), but an async generator that yields dict events:
+
+        {"type": "tool_call",   step, tool, args, id}          — a tool started
+        {"type": "tool_result", id, status, summary, sources}  — it finished
+        {"type": "sources",     sources}                       — full source list
+        {"type": "answer",      answer}                        — final markdown
+        {"type": "done",        status, usage, error}          — terminal event
+        """
+        if self.client is None:
+            yield {"type": "tool_call", "step": 1, "tool": "web_search",
+                   "args": {"query": req.query}, "id": "s1"}
+            result_text = await self._tool_web_search(
+                {"query": req.query, "num_results": req.max_sources})
+            self._steps.append(AgentStep(step=1, tool="web_search",
+                                         args={"query": req.query},
+                                         result_summary=result_text[:200]))
+            sources = [s.model_dump() for s in self._sorted_sources(req.max_sources)]
+            yield {"type": "tool_result", "id": "s1",
+                   "status": self._infer_status("web_search", result_text),
+                   "summary": result_text[:200], "sources": len(sources)}
+            yield {"type": "sources", "sources": sources}
+            yield {
+                "type": "done", "status": "no_llm", "usage": self._usage,
+                "error": (
+                    "No AI provider configured — showing search results without an "
+                    "AI answer. Set SCRAPEX_AI_PROVIDER + SCRAPEX_AI_API_KEY "
+                    "(or point it at a local ollama/lmstudio)."
+                ),
+            }
+            return
+
+        model = req.model or self.model
+        max_steps = 3 if req.depth == "basic" else settings.agent_max_steps
+        tools = _build_tools(req.include_social)
+        messages: List[dict] = [
+            {"role": "system", "content": SYSTEM_PROMPT.format(today=date.today().isoformat())},
+            {"role": "user", "content": req.query},
+        ]
+
+        answer: Optional[str] = None
+        status = "ok"
+        try:
+            for step_num in range(1, max_steps + 1):
+                response = await self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    temperature=0.2,
+                    max_tokens=2000,
+                )
+                self._track_usage(response)
+                message = response.choices[0].message
+
+                if not message.tool_calls:
+                    answer = message.content
+                    break
+
+                messages.append({
+                    "role": "assistant",
+                    "content": message.content or "",
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                        }
+                        for tc in message.tool_calls
+                    ],
+                })
+
+                # Parse args and announce every call before running them.
+                parsed = []
+                for tc in message.tool_calls:
+                    try:
+                        args = json.loads(tc.function.arguments or "{}")
+                    except json.JSONDecodeError:
+                        args = {}
+                    parsed.append((tc, args))
+                    yield {"type": "tool_call", "step": step_num, "tool": tc.function.name,
+                           "args": args, "id": tc.id}
+
+                async def run_call(tc, args):
+                    result = await self._execute_tool(tc.function.name, args)
+                    return tc, args, result
+
+                results = await asyncio.gather(*(run_call(tc, args) for tc, args in parsed))
+                for tc, args, result in results:
+                    self._usage["tool_calls"] += 1
+                    self._steps.append(AgentStep(
+                        step=step_num,
+                        tool=tc.function.name,
+                        args=args,
+                        result_summary=result[:200],
+                    ))
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result[:MAX_TOOL_RESULT_CHARS],
+                    })
+                    yield {"type": "tool_result", "id": tc.id,
+                           "status": self._infer_status(tc.function.name, result),
+                           "summary": result[:200],
+                           "sources": len(self._sources)}
+
+            if answer is None:
+                messages.append({
+                    "role": "user",
+                    "content": "Answer the original question NOW using the sources you gathered. Cite [n].",
+                })
+                response = await self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=0.2,
+                    max_tokens=2000,
+                )
+                self._track_usage(response)
+                answer = response.choices[0].message.content
+                status = "max_steps_reached"
+
+        except Exception as e:
+            yield {"type": "sources",
+                   "sources": [s.model_dump() for s in self._sorted_sources(req.max_sources)]}
+            yield {"type": "done", "status": "error", "usage": self._usage,
+                   "error": f"{type(e).__name__}: {e}"}
+            return
+
+        yield {"type": "sources",
+               "sources": [s.model_dump() for s in self._sorted_sources(req.max_sources)]}
+        yield {"type": "answer", "answer": answer}
+        yield {"type": "done", "status": status, "usage": self._usage}
+
     def _track_usage(self, response) -> None:
         self._usage["llm_calls"] += 1
         usage = getattr(response, "usage", None)
