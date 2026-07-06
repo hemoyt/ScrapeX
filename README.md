@@ -8,11 +8,11 @@
   <img src="https://img.shields.io/badge/platforms-10-orange" alt="Platforms">
 </p>
 
-> **One API for public web & social data — plus a Tavily-style research agent that turns questions into cited answers.**
+> **Ask anything about the public web & social — and watch the agent work.** ScrapeX searches the live web and 10 social platforms, reads what matters, and answers with `[n]` citations you can click.
 
-Ask a question → the agent searches the web and social platforms, scrapes what matters, and returns a markdown answer with `[n]` citations. Or hit the platforms directly: **Twitter/X, Reddit, YouTube, Bluesky, Hacker News, Mastodon, Instagram, TikTok, LinkedIn, Facebook** — all keyless, all through one unified endpoint.
+Type a question in the **Ask** box and the agent streams its work in real time — every web search, every page it reads, every platform it queries — then hands back a cited answer. It's a self-hosted, chat-style research agent (think Perplexity, but it can see **Twitter/X, Reddit, YouTube, Bluesky, Hacker News, Mastodon, Instagram, TikTok, LinkedIn, Facebook** too — all keyless, through one unified API).
 
-The pain this solves: getting public web + social data normally means juggling 6 paid scraper APIs, half-dead libraries, and brittle scripts. ScrapeX is one self-hosted API with **honest status reporting** — when a platform blocks anonymous access, you get `status: "blocked"` and an explanation, never fabricated data.
+The pain this solves: keeping a pulse on what the internet is saying — for research, competitor tracking, or brand monitoring — normally means juggling 6 paid scraper APIs, half-dead libraries, and a chatbot that can't cite its sources. ScrapeX is one self-hosted service with **honest status reporting**: when a platform blocks anonymous access you get `status: "blocked"` and an explanation, never fabricated data. Every claim in an answer maps back to a real URL.
 
 ---
 
@@ -27,18 +27,24 @@ docker compose up -d
 **Open http://localhost:8000 in your browser** — ScrapeX ships with a built-in UI (no build step, no Node):
 
 <p align="center">
-  <img src="docs/screenshots/store.png" alt="ScrapeX Scraper Store — Profile Finder searching one username across every platform" width="920">
+  <img src="docs/screenshots/ask.png" alt="ScrapeX Ask — a chat-style research agent over the web and 10 social platforms" width="920">
 </p>
 
+- **Ask** — the front door. A chat-style research agent: type a question, watch it search the web + social platforms live (each tool call shown with its platform and an honest ✓/⊘ status), and get a cited answer with clickable sources. Works keyless for live search results; add an AI provider in Settings to unlock synthesized answers.
+- **Competitors** — type your product, AI discovers the competitors and pulls their social profiles + what Reddit/HN are saying about them. Plus a "track mentions" search across platforms.
 - **Store** — an actor-store-style gallery: one card per platform, pick profile/posts/search, run it or start a full dataset run with CSV export. The Profile Finder sits on top.
 - **Data Viewer** — every result (Competitors, Store, Runs, or your own pasted JSON) opens here as a readable, sortable table instead of a raw JSON blob — search/filter rows, page through large datasets, click a row for full detail, export CSV/JSON. Describe how you want it cleaned in plain language ("keep only name and email, drop duplicates") and the AI reshapes it in place.
-- **Competitors** — type your product, AI discovers the competitors and pulls their social profiles + what Reddit/HN are saying about them. Plus a "track mentions" search across platforms.
-- **Research** — ask a question, get a cited answer with sources and the agent's full tool trace.
+- **AI Studio** — send one prompt straight to your configured model, no tools, to confirm a provider works.
 - **Playground** — try every API endpoint with editable request bodies and pretty JSON.
 
 ```bash
-# Ask the research agent (needs a free OpenRouter key for answers)
+# Ask the research agent — cited answer as JSON (needs an AI provider key for the answer)
 curl -X POST localhost:8000/api/v1/agent \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "What are developers saying about AI agents this week?"}'
+
+# Same thing, streamed — watch each tool call arrive as a Server-Sent Event
+curl -N -X POST localhost:8000/api/v1/agent/stream \
   -H 'Content-Type: application/json' \
   -d '{"query": "What are developers saying about AI agents this week?"}'
 
@@ -68,7 +74,9 @@ curl -X POST localhost:8000/api/v1/social/search \
 }
 ```
 
-Returns `{answer, sources[], steps[], usage, status}`. The `steps` array is a full trace of what the agent did. Without an OpenRouter key it degrades to search-only (`status: "no_llm"`) instead of failing.
+Returns `{answer, sources[], steps[], usage, status}`. The `steps` array is a full trace of what the agent did. Without an AI provider key it degrades to search-only (`status: "no_llm"`) instead of failing.
+
+**`POST /api/v1/agent/stream`** is the same agent as a **Server-Sent Events** stream — this is what powers the **Ask** chat UI. It emits one event per phase: `tool_call` (the agent picked a tool), `tool_result` (it came back, with an `ok`/`blocked`/`partial`/`error` status), `sources`, `answer`, and a terminal `done`. Read it with `fetch()` + a stream reader (it's a POST, so not `EventSource`).
 
 `POST /api/v1/search` also accepts `"include_answer": true` for a one-shot cited answer over web results — the lightweight version of the agent.
 

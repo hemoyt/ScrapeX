@@ -202,3 +202,57 @@ def test_agent_route_no_llm(client):
     assert body["success"] is True
     assert body["status"] == "no_llm"
     assert len(body["sources"]) == 2
+
+
+async def _collect_stream(agent, req):
+    return [event async for event in agent.run_stream(req)]
+
+
+async def test_agent_stream_emits_ordered_events(_search_mocked):
+    fake = FakeLLM([
+        _response(_msg(tool_calls=[_tool_call("c1", "web_search", {"query": "claude ai"})])),
+        _response(_msg(content="Claude is Anthropic's LLM family [1].")),
+    ])
+    agent = ResearchAgent()
+    agent.client = fake
+
+    events = await _collect_stream(agent, AgentRequest(query="What is Claude?"))
+    types = [e["type"] for e in events]
+
+    # tool_call before its result; sources + answer before the terminal done
+    assert types == ["tool_call", "tool_result", "sources", "answer", "done"]
+    assert events[0]["tool"] == "web_search"
+    assert events[0]["id"] == "c1" and events[1]["id"] == "c1"
+    assert events[1]["status"] == "ok"
+    assert len(events[2]["sources"]) == 2
+    assert "[1]" in events[3]["answer"]
+    assert events[-1]["status"] == "ok"
+
+
+async def test_agent_stream_no_llm(_search_mocked):
+    agent = ResearchAgent()
+    agent.client = None
+    events = await _collect_stream(agent, AgentRequest(query="What is Claude?", max_sources=5))
+    types = [e["type"] for e in events]
+    assert types[0] == "tool_call" and types[-1] == "done"
+    assert events[-1]["status"] == "no_llm"
+    sources_event = next(e for e in events if e["type"] == "sources")
+    assert len(sources_event["sources"]) == 2
+
+
+def test_agent_stream_route_no_llm(client):
+    with respx.mock:
+        respx.get(url__startswith="https://html.duckduckgo.com/html/").mock(
+            return_value=Response(200, text=DDG_HTML)
+        )
+        resp = client.post("/api/v1/agent/stream", json={"query": "What is Claude?"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream")
+    payloads = [
+        json.loads(line[len("data: "):])
+        for line in resp.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert payloads[-1]["type"] == "done"
+    assert payloads[-1]["status"] == "no_llm"
+    assert any(p["type"] == "sources" and len(p["sources"]) == 2 for p in payloads)

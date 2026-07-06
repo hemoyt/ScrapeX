@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ScrapeX — Web &amp; Social Research</title>
+<title>ScrapeX — Ask anything about the public web &amp; social</title>
 <style>
   :root {
     --bg: #0a0a0c; --surface: #121216; --surface-2: #1a1a20;
@@ -220,6 +220,95 @@
   .dv-cards dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
   .dv-cards dt { color: var(--ink-3); text-transform: uppercase; font-size: 10.5px; letter-spacing: .05em; padding-top: 2px; }
   .dv-cards dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+
+  /* ---------- ask / chat agent ---------- */
+  .navsep { width: 1px; height: 20px; background: var(--border-2); flex: none; align-self: center; margin: 0 4px; }
+  nav button[data-tab="ask"] { color: var(--ink-2); font-weight: 600; }
+  nav button[data-tab="ask"].active { color: var(--ink); }
+
+  #tab-ask:not([hidden]) { display: flex; flex-direction: column; min-height: calc(100vh - 100px); }
+  main:has(#tab-ask:not([hidden])) { padding-top: 20px; padding-bottom: 0; }
+  .ask-scroll { flex: 1; }
+  .ask-hero { text-align: center; padding: 7vh 0 30px; max-width: 720px; margin: 0 auto; }
+  .ask-hero h1 { font-size: 33px; margin-bottom: 14px; }
+  .ask-hero .sub { margin: 0 auto 26px; color: var(--ink-2); }
+  .ask-hero .sub em { color: var(--ink); font-style: normal; }
+  .ask-suggest { display: flex; flex-direction: column; gap: 9px; max-width: 560px; margin: 0 auto; }
+  .ask-chip {
+    background: var(--surface); border: 1px solid var(--border); color: var(--ink-2);
+    border-radius: 10px; padding: 12px 16px; font: inherit; font-size: 13.5px; cursor: pointer;
+    text-align: left; transition: border-color .15s, color .15s, transform .06s;
+  }
+  .ask-chip:hover { color: var(--ink); border-color: var(--border-2); }
+  .ask-chip:active { transform: translateY(1px); }
+
+  #ask-thread { display: flex; flex-direction: column; gap: 30px; }
+  #ask-thread:not(:empty) { padding-top: 10px; }
+  .msg { display: flex; gap: 13px; }
+  .msg.user { justify-content: flex-end; }
+  .msg.user .bubble {
+    background: var(--accent-soft); border: 1px solid rgba(217,161,60,.24); color: var(--ink);
+    border-radius: 14px 14px 4px 14px; padding: 11px 16px; max-width: 80%;
+    overflow-wrap: anywhere; white-space: pre-wrap; font-size: 14.5px;
+  }
+  .agent-avatar {
+    flex: none; width: 28px; height: 28px; border-radius: 8px; margin-top: 1px;
+    background: var(--surface-2); border: 1px solid var(--border-2); color: var(--accent);
+    display: flex; align-items: center; justify-content: center; font-size: 12px;
+  }
+  .agent-body { flex: 1; min-width: 0; }
+
+  .trace { display: flex; flex-direction: column; margin-bottom: 4px; }
+  .trace-row {
+    display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-2);
+    padding: 5px 0; animation: fadein .25s ease;
+  }
+  .trace-row .pmk { width: 24px; height: 24px; font-size: 8.5px; }
+  .trace-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trace-label b { color: var(--ink); font-weight: 600; }
+  .trace-status { flex: none; display: flex; align-items: center; }
+  .trace-status .spin { border-color: var(--ink-3); border-top-color: transparent; margin: 0; }
+  .trace-done .trace-label { color: var(--ink-3); }
+  @keyframes fadein { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+  .thinking { color: var(--ink-3); font-size: 13px; padding: 5px 0; display: flex; align-items: center; gap: 9px; }
+
+  .agent-body .answer { margin-top: 8px; animation: fadein .3s ease; }
+  .src-wrap { margin-top: 12px; }
+  .src-wrap details { margin-top: 0; }
+  .src-wrap summary { font-size: 12.5px; color: var(--ink-3); font-weight: 600; }
+  .src-wrap .source { border-top: 1px solid var(--border); }
+  .src-wrap .source:first-of-type { border-top: 0; }
+
+  .ask-composer {
+    position: sticky; bottom: 0; margin-top: auto;
+    background: linear-gradient(to top, var(--bg) 68%, rgba(10,10,12,0));
+    padding: 14px 0 20px;
+  }
+  .ask-box {
+    border: 1px solid var(--border-2); background: var(--surface); border-radius: 14px;
+    padding: 11px 13px 9px; transition: border-color .15s, box-shadow .15s;
+  }
+  .ask-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .ask-box textarea {
+    width: 100%; background: transparent; border: 0; color: var(--ink); font: inherit;
+    font-size: 15px; line-height: 1.5; resize: none; outline: none; max-height: 200px; padding: 2px;
+  }
+  .ask-box textarea::placeholder { color: var(--ink-3); }
+  .ask-actions { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+  .ask-actions .spacer { flex: 1; }
+  .ask-opt { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-3); cursor: pointer; }
+  .ask-opt select { padding: 4px 8px; font-size: 12.5px; border-radius: 6px; }
+  .ask-opt input { accent-color: var(--accent); }
+  .ask-send {
+    width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: var(--accent-ink);
+    border: 0; cursor: pointer; font-size: 17px; font-weight: 700; line-height: 1;
+    display: flex; align-items: center; justify-content: center; transition: filter .15s, transform .06s;
+  }
+  .ask-send:hover { filter: brightness(1.07); }
+  .ask-send:active { transform: translateY(1px); }
+  .ask-send:disabled { opacity: .45; cursor: not-allowed; }
+  .ask-send .spin { border-color: var(--accent-ink); border-top-color: transparent; margin: 0; }
+  .ask-foot { text-align: center; margin-top: 10px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -227,10 +316,11 @@
 <header>
   <div class="logo"><span class="mark"></span>ScrapeX</div>
   <nav id="tabs">
-    <button data-tab="competitors" class="active">Competitors</button>
+    <button data-tab="ask" class="active">Ask</button>
+    <span class="navsep"></span>
+    <button data-tab="competitors">Competitors</button>
     <button data-tab="store">Store</button>
     <button data-tab="data">Data Viewer</button>
-    <button data-tab="research">Research</button>
     <button data-tab="studio">AI Studio</button>
     <button data-tab="playground">Playground</button>
     <button data-tab="settings">Settings</button>
@@ -241,8 +331,40 @@
 
 <main>
 
+  <!-- ============ ASK (chat agent) ============ -->
+  <section id="tab-ask">
+    <div class="ask-scroll" id="ask-scroll">
+      <div class="ask-hero" id="ask-hero">
+        <h1>What do you want to know?</h1>
+        <p class="sub">ScrapeX reads the live web <em>and</em> 10 social platforms — Reddit, X, YouTube, Hacker News, Bluesky and more — then answers with sources you can click. It shows every search and page it reads, and tells you honestly when a platform blocks it.</p>
+        <div class="ask-suggest" id="ask-suggest">
+          <button class="ask-chip">What are developers saying about AI agents this week?</button>
+          <button class="ask-chip">Who are Notion's top competitors and what does Reddit think of them?</button>
+          <button class="ask-chip">How did people react to the latest OpenAI release across Reddit &amp; Hacker News?</button>
+          <button class="ask-chip">Who is @mkbhd and what does he post about lately?</button>
+        </div>
+      </div>
+      <div id="ask-thread"></div>
+    </div>
+
+    <div class="ask-composer">
+      <div class="ask-box">
+        <textarea id="ask-input" rows="1" placeholder="Ask anything about the public web &amp; social… (press / to focus)"></textarea>
+        <div class="ask-actions">
+          <label class="ask-opt" title="Quick = up to 3 tool calls · Deep = thorough multi-step research">
+            <select id="ask-depth"><option value="basic" selected>Quick</option><option value="advanced">Deep</option></select>
+          </label>
+          <label class="ask-opt" title="Let the agent search social platforms, not just the web"><input type="checkbox" id="ask-social" checked> social</label>
+          <span class="spacer"></span>
+          <button class="ask-send" id="ask-send" title="Send (Enter · Shift+Enter for newline)">↑</button>
+        </div>
+      </div>
+      <div class="ask-foot muted">Answers are synthesized by your configured AI provider — add one in <a href="#" onclick="switchTab('settings');return false">Settings</a>. Without a key you still get live search results.</div>
+    </div>
+  </section>
+
   <!-- ============ COMPETITORS ============ -->
-  <section id="tab-competitors">
+  <section id="tab-competitors" hidden>
     <h1>Competitor watch</h1>
     <p class="sub">Type your product — AI finds the competitors, then ScrapeX pulls their social profiles and what Reddit &amp; Hacker News are saying about them.</p>
 
@@ -340,24 +462,6 @@
       <div class="dv-panel" id="dv-panel"></div>
       <div class="dv-pager" id="dv-pager" hidden></div>
     </div>
-  </section>
-
-  <!-- ============ RESEARCH ============ -->
-  <section id="tab-research" hidden>
-    <h1>Research agent</h1>
-    <p class="sub">Ask anything — the agent searches the web and social platforms, reads pages, and answers with citations you can verify.</p>
-
-    <textarea id="r-query" rows="3" style="font-family:inherit;font-size:15px" placeholder="e.g. What are developers saying about local LLMs this month?"></textarea>
-    <div class="row" style="margin-top:10px">
-      <select id="r-depth">
-        <option value="basic" selected>Basic (fast, up to 3 steps)</option>
-        <option value="advanced">Advanced (thorough)</option>
-      </select>
-      <label class="check"><input type="checkbox" id="r-social" checked> use social platforms</label>
-      <span class="grow"></span>
-      <button class="btn" id="r-go">Research</button>
-    </div>
-    <div id="r-out"></div>
   </section>
 
   <!-- ============ SETTINGS ============ -->
@@ -490,14 +594,14 @@ const keyBanner = (err) => `<div class="banner">⚡ <div><strong>AI features nee
 const errBanner = (msg) => `<div class="banner err">✕ <div>${esc(msg || "Request failed")}</div></div>`;
 
 /* ---------- tiny markdown (headings, bold, code, lists, links, [n] cites) ---------- */
-function md(text, nSources) {
+function md(text, nSources, prefix = "") {
   let h = esc(text);
   h = h.replace(/```([\s\S]*?)```/g, (_, c) => `<pre>${c}</pre>`);
   h = h.replace(/`([^`\n]+)`/g, "<code>$1</code>");
   h = h.replace(/^### (.*)$/gm, "<h3>$1</h3>").replace(/^## (.*)$/gm, "<h2>$1</h2>").replace(/^# (.*)$/gm, "<h2>$1</h2>");
   h = h.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   h = h.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-  h = h.replace(/\[(\d{1,2})\]/g, (m, n) => +n <= nSources ? `<sup><a href="#src-${n}">[${n}]</a></sup>` : m);
+  h = h.replace(/\[(\d{1,2})\]/g, (m, n) => +n <= nSources ? `<sup><a href="#${prefix}src-${n}">[${n}]</a></sup>` : m);
   const lines = h.split("\n"); let out = [], inList = false;
   for (const line of lines) {
     const li = line.match(/^\s*[-*] (.*)$/);
@@ -569,6 +673,145 @@ $("#keybtn").onclick = () => {
   v ? localStorage.setItem("scrapex_key", v) : localStorage.removeItem("scrapex_key");
 };
 
+/* ============ ASK (chat agent) ============ */
+const ASK = { streaming: false, turn: 0 };
+const PLAT_MARK = { web: "WEB", reddit: "RD", twitter: "X", bluesky: "BS", hackernews: "HN",
+  mastodon: "MA", youtube: "YT", instagram: "IG", tiktok: "TK", linkedin: "LI", facebook: "FB" };
+const PLAT_NAME = { web: "the web", reddit: "Reddit", twitter: "Twitter/X", bluesky: "Bluesky",
+  hackernews: "Hacker News", mastodon: "Mastodon", youtube: "YouTube", instagram: "Instagram",
+  tiktok: "TikTok", linkedin: "LinkedIn", facebook: "Facebook" };
+const platMark = (p) => `<span class="pmk">${esc(PLAT_MARK[p] || "·")}</span>`;
+const platName = (p) => PLAT_NAME[p] || p || "a platform";
+
+// Describe a tool call as a human-readable trace row.
+function describeTool(tool, args) {
+  args = args || {};
+  if (tool === "web_search") return { icon: platMark("web"), label: `Searching the web for <b>${esc(args.query || "")}</b>` };
+  if (tool === "scrape_url") {
+    let host = args.url || "";
+    try { host = new URL(args.url).hostname.replace(/^www\./, ""); } catch {}
+    return { icon: `<span class="pmk">↧</span>`, label: `Reading <b>${esc(host)}</b>` };
+  }
+  if (tool === "social_search") return { icon: platMark(args.platform), label: `Searching ${esc(platName(args.platform))} for <b>${esc(args.query || "")}</b>` };
+  if (tool === "social_posts") return { icon: platMark(args.platform), label: `Fetching <b>${esc(args.identifier || "")}</b> on ${esc(platName(args.platform))}` };
+  return { icon: `<span class="pmk">·</span>`, label: esc(tool) };
+}
+
+const askScrollDown = () => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+
+// Parse a fetch() Response body as an SSE stream, calling onEvent per event.
+async function readSSE(resp, onEvent) {
+  const reader = resp.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n\n")) >= 0) {
+      const line = buf.slice(0, i).split("\n").find(l => l.startsWith("data:"));
+      buf = buf.slice(i + 2);
+      if (!line) continue;
+      try { onEvent(JSON.parse(line.slice(5).trim())); } catch {}
+    }
+  }
+}
+
+function askComposerBusy(on) {
+  ASK.streaming = on;
+  const send = $("#ask-send");
+  send.disabled = on;
+  send.innerHTML = on ? `<span class="spin"></span>` : "↑";
+}
+
+async function askSubmit(query) {
+  query = (query || "").trim();
+  if (!query || ASK.streaming) return;
+  $("#ask-input").value = ""; autoGrow($("#ask-input"));
+  $("#ask-hero").hidden = true;
+  const turn = ++ASK.turn, prefix = `t${turn}-`;
+  const thread = $("#ask-thread");
+  thread.insertAdjacentHTML("beforeend", `<div class="msg user"><div class="bubble">${esc(query)}</div></div>`);
+  thread.insertAdjacentHTML("beforeend", `
+    <div class="msg agent">
+      <div class="agent-avatar">◆</div>
+      <div class="agent-body">
+        <div class="trace" id="${prefix}trace"><div class="thinking"><span class="spin"></span>Thinking…</div></div>
+        <div id="${prefix}answer"></div>
+        <div class="src-wrap" id="${prefix}sources"></div>
+      </div>
+    </div>`);
+  askScrollDown();
+  askComposerBusy(true);
+
+  const trace = document.getElementById(prefix + "trace");
+  const answerEl = document.getElementById(prefix + "answer");
+  const sourcesEl = document.getElementById(prefix + "sources");
+  let sources = [], firstCall = true;
+
+  const finish = (statusMsg) => { if (statusMsg) answerEl.innerHTML = statusMsg; askComposerBusy(false); askScrollDown(); };
+
+  try {
+    const headers = { "Content-Type": "application/json" };
+    const key = localStorage.getItem("scrapex_key");
+    if (key) headers["X-API-Key"] = key;
+    const resp = await fetch("/api/v1/agent/stream", {
+      method: "POST", headers,
+      body: JSON.stringify({ query, depth: $("#ask-depth").value, include_social: $("#ask-social").checked, max_sources: 8 }),
+    });
+    if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+
+    await readSSE(resp, (ev) => {
+      if (ev.type === "tool_call") {
+        if (firstCall) { trace.innerHTML = ""; firstCall = false; }
+        const { icon, label } = describeTool(ev.tool, ev.args);
+        trace.insertAdjacentHTML("beforeend",
+          `<div class="trace-row" id="${prefix}tc-${esc(ev.id)}">${icon}<span class="trace-label">${label}</span><span class="trace-status"><span class="spin"></span></span></div>`);
+        askScrollDown();
+      } else if (ev.type === "tool_result") {
+        const row = document.getElementById(`${prefix}tc-${ev.id}`);
+        if (row) { row.classList.add("trace-done"); row.querySelector(".trace-status").innerHTML = chip(ev.status); }
+      } else if (ev.type === "sources") {
+        sources = ev.sources || [];
+        if (sources.length) sourcesEl.innerHTML =
+          `<details open><summary>${sources.length} source${sources.length > 1 ? "s" : ""}</summary>`
+          + sources.map(s => `<div class="source" id="${prefix}src-${s.id}"><span class="n">[${s.id}]</span>
+              <div><a href="${esc(s.url)}" target="_blank">${esc(s.title || s.url)}</a>
+              <span class="plat">${esc(s.platform)}${s.snippet ? " · " + esc(s.snippet.slice(0, 90)) : ""}</span></div></div>`).join("")
+          + `</details>`;
+      } else if (ev.type === "answer") {
+        answerEl.innerHTML = `<div class="answer">${md(ev.answer || "", sources.length, prefix)}</div>`;
+        askScrollDown();
+      } else if (ev.type === "done") {
+        if (firstCall) trace.innerHTML = "";
+        if (ev.status === "no_llm") answerEl.innerHTML = keyBanner(ev.error);
+        else if (ev.status === "error") answerEl.innerHTML = errBanner(ev.error);
+        else if (!answerEl.innerHTML && !sources.length) answerEl.innerHTML = errBanner("No answer returned.");
+      }
+    });
+    finish();
+  } catch (e) { finish(errBanner(e.message || "Request failed")); }
+}
+
+function autoGrow(ta) { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 200) + "px"; }
+$("#ask-input").addEventListener("input", (e) => autoGrow(e.target));
+$("#ask-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); askSubmit($("#ask-input").value); }
+});
+$("#ask-send").onclick = () => askSubmit($("#ask-input").value);
+$("#ask-suggest").addEventListener("click", (e) => {
+  const chip = e.target.closest(".ask-chip"); if (!chip) return;
+  askSubmit(chip.textContent);
+});
+// "/" focuses the ask box when the Ask tab is open and you're not already typing.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "/" || document.getElementById("tab-ask").hidden) return;
+  const t = e.target.tagName;
+  if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") return;
+  e.preventDefault(); $("#ask-input").focus();
+});
+
 /* ============ COMPETITORS ============ */
 function postHtml(p, showPlatform) {
   const stats = Object.entries(p.stats || {}).slice(0, 3).map(([k, v]) => `${fmt(v)} ${k}`).join(" · ");
@@ -638,40 +881,6 @@ $("#m-go").onclick = async () => {
       + stashButton(flatRows, "View mentions in Data Viewer", "mentions: " + query);
   } catch (e) { $("#m-out").innerHTML = errBanner(e.message); }
   finally { busy($("#m-go"), false); }
-};
-
-/* ============ RESEARCH ============ */
-$("#r-go").onclick = async () => {
-  const query = $("#r-query").value.trim();
-  if (!query) return $("#r-query").focus();
-  busy($("#r-go"), true, "Researching…");
-  $("#r-out").innerHTML = "";
-  try {
-    const { data } = await api("/api/v1/agent", {
-      query, depth: $("#r-depth").value, include_social: $("#r-social").checked, max_sources: 8,
-    });
-    let html = "";
-    if (data.status === "no_llm") html += keyBanner(data.error);
-    else if (!data.success) html += errBanner(data.error);
-    if (data.answer) html += `<div class="answer">${md(data.answer, data.sources.length)}</div>`;
-    if (data.sources?.length) {
-      html += `<div class="sources answer"><strong>Sources</strong>` + data.sources.map(s => `
-        <div class="source" id="src-${s.id}">
-          <span class="n">[${s.id}]</span>
-          <div><a href="${esc(s.url)}" target="_blank">${esc(s.title || s.url)}</a>
-            <span class="plat">${esc(s.platform)}</span>
-            ${s.snippet ? `<div class="muted">${esc(s.snippet.slice(0, 140))}</div>` : ""}
-          </div>
-        </div>`).join("") + `</div>`;
-    }
-    if (data.steps?.length) {
-      html += `<details><summary>Agent trace — ${data.steps.length} tool call(s), ${data.usage?.llm_calls || 0} LLM call(s)</summary>`
-        + data.steps.map(s => `<div class="step">step ${s.step} · <strong>${esc(s.tool)}</strong>(${esc(JSON.stringify(s.args))})</div>`).join("")
-        + `</details>`;
-    }
-    $("#r-out").innerHTML = html || errBanner("Empty response");
-  } catch (e) { $("#r-out").innerHTML = errBanner(e.message); }
-  finally { busy($("#r-go"), false); }
 };
 
 /* ============ STORE ============ */
@@ -1279,7 +1488,6 @@ $("#p-view-dv").onclick = () => {
 /* enter-to-submit */
 $("#c-product").addEventListener("keydown", e => e.key === "Enter" && $("#c-go").click());
 $("#m-query").addEventListener("keydown", e => e.key === "Enter" && $("#m-go").click());
-$("#r-query").addEventListener("keydown", e => e.key === "Enter" && !e.shiftKey && ($("#r-go").click(), e.preventDefault()));
 $("#s-prompt").addEventListener("keydown", e => e.key === "Enter" && !e.shiftKey && ($("#s-go").click(), e.preventDefault()));
 </script>
 </body>
