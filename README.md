@@ -308,7 +308,7 @@ Every platform speaks the same request shape via `POST /api/v1/social/{platform}
 | **LinkedIn** | 🟡 | — | — | — | og:/meta salvage; login wall reported honestly |
 | **Facebook** | 🟡 | — | — | — | og:/meta salvage; login wall reported honestly |
 
-✅ reliable · 🟡 best-effort (may return `status: "partial"` or `"blocked"` with an explanation) · — unsupported (the API tells you)
+✅ reliable · 🟡 best-effort (may return `status: "partial"` or `"blocked"` with an explanation) 
 \* Twitter timelines/search have no reliable keyless source since Nitter died; single tweets & profiles work great. Point `SCRAPEX_NITTER_INSTANCES` at a live mirror to re-enable them.
 † TikTok video lists need JS hydration — works where Playwright can run.
 
