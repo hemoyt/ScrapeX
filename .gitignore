@@ -4,6 +4,8 @@ __pycache__/
 dist/
 .env
 .scrapex_settings.json
+.scrapex_data.sqlite3*
+node_modules/
 *.log
 .vscode/
 .idea/

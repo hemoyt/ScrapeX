@@ -14,9 +14,12 @@ from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import httpx
+
 from app.config import settings
 from app.models import DatasetInfo, RunInfo, RunRequest, SocialQueryType, SocialRequest
 from app.services.social_registry import get_platform
+from app.services.store import persistent_store
 
 PAGE_SIZE = 50  # per-page ask; platforms clamp to their own API maximums
 
@@ -25,48 +28,75 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _dedupe_key(item: Dict[str, Any]) -> str:
+    return item.get("id") or item.get("url") or repr(sorted(item.items()))[:200]
+
+
 class Dataset:
-    def __init__(self, dataset_id: str, run_id: str, platform: str):
+    def __init__(self, dataset_id: str, run_id: str, platform: str,
+                 created_at: Optional[str] = None, hydrated: bool = True):
         self.id = dataset_id
         self.run_id = run_id
         self.platform = platform
-        self.created_at = _now_iso()
-        self.items: List[Dict[str, Any]] = []
+        self.created_at = created_at or _now_iso()
+        self._items: List[Dict[str, Any]] = []
         self._seen: set = set()
+        # Datasets restored from disk defer loading their items until first
+        # access, so a large history doesn't slow startup.
+        self._hydrated = hydrated
+
+    @property
+    def items(self) -> List[Dict[str, Any]]:
+        if not self._hydrated:
+            self._items = persistent_store.load_items(self.id)
+            self._seen = {_dedupe_key(i) for i in self._items}
+            self._hydrated = True
+        return self._items
+
+    @property
+    def count(self) -> int:
+        if not self._hydrated:
+            return persistent_store.count_items(self.id)
+        return len(self._items)
 
     def push(self, items: List[Dict[str, Any]], max_items: int) -> int:
         """Append items, deduped across pages. Returns how many were new."""
-        added = 0
+        existing = self.items  # triggers hydration for restored datasets
+        start_seq = len(existing)
+        added: List[Dict[str, Any]] = []
         for item in items:
-            if len(self.items) >= max_items:
+            if len(existing) >= max_items:
                 break
-            key = item.get("id") or item.get("url") or repr(sorted(item.items()))[:200]
+            key = _dedupe_key(item)
             if key in self._seen:
                 continue
             self._seen.add(key)
-            self.items.append(item)
-            added += 1
-        return added
+            existing.append(item)
+            added.append(item)
+        persistent_store.append_items(self.id, start_seq, added)
+        return len(added)
 
     def info(self) -> DatasetInfo:
         return DatasetInfo(
             id=self.id,
             run_id=self.run_id,
             platform=self.platform,
-            item_count=len(self.items),
+            item_count=self.count,
             created_at=self.created_at,
         )
 
 
 class RunStore:
-    """In-memory store for runs and their datasets (oldest evicted past the
-    history limit). Swap for Redis/DB when you need persistence."""
+    """Store for runs and their datasets (oldest evicted past the history
+    limit). In-memory for speed, write-through to SQLite for durability —
+    call load() at startup to hydrate what a previous process left behind."""
 
     def __init__(self):
         self.runs: "OrderedDict[str, RunInfo]" = OrderedDict()
         self.datasets: "OrderedDict[str, Dataset]" = OrderedDict()
         self.requests: Dict[str, RunRequest] = {}
         self.abort_flags: Dict[str, bool] = {}
+        self._loaded = False
 
     def create(self, req: RunRequest) -> RunInfo:
         run_id = uuid.uuid4().hex[:12]
@@ -81,11 +111,52 @@ class RunStore:
             max_items=min(req.max_items, settings.run_max_items),
         )
         self.runs[run_id] = run
-        self.datasets[dataset_id] = Dataset(dataset_id, run_id, run.platform)
+        dataset = Dataset(dataset_id, run_id, run.platform)
+        self.datasets[dataset_id] = dataset
         self.requests[run_id] = req
         self.abort_flags[run_id] = False
+        persistent_store.save_run(run.model_dump_json(), req.model_dump_json(), run_id, dataset_id)
+        persistent_store.save_dataset(dataset_id, run_id, run.platform, dataset.created_at)
         self._prune()
         return run
+
+    def persist(self, run: RunInfo) -> None:
+        """Write a run's current state through to disk."""
+        persistent_store.update_run(run.id, run.model_dump_json())
+
+    def load(self) -> int:
+        """Hydrate runs/datasets persisted by a previous process. Runs that
+        were mid-flight when that process died are marked ABORTED — honest
+        status beats a run stuck in RUNNING forever. Returns runs restored."""
+        if self._loaded:
+            return 0
+        self._loaded = True
+        restored = 0
+        dataset_meta = {row[0]: row for row in persistent_store.load_datasets()}
+        for run_json, req_json in persistent_store.load_runs():
+            try:
+                run = RunInfo.model_validate_json(run_json)
+                req = RunRequest.model_validate_json(req_json)
+            except Exception:
+                continue  # never let one corrupt row break startup
+            if run.id in self.runs:
+                continue
+            if run.status in ("READY", "RUNNING"):
+                run.status = "ABORTED"
+                run.status_detail = "Server restarted while this run was in flight."
+                run.finished_at = _now_iso()
+                persistent_store.update_run(run.id, run.model_dump_json())
+            meta = dataset_meta.get(run.dataset_id)
+            created_at = meta[3] if meta else run.started_at
+            self.runs[run.id] = run
+            self.datasets[run.dataset_id] = Dataset(
+                run.dataset_id, run.id, run.platform, created_at=created_at, hydrated=False
+            )
+            self.requests[run.id] = req
+            self.abort_flags[run.id] = False
+            restored += 1
+        self._prune()
+        return restored
 
     def _prune(self):
         while len(self.runs) > settings.run_history_limit:
@@ -93,15 +164,33 @@ class RunStore:
             self.datasets.pop(old_run.dataset_id, None)
             self.requests.pop(old_id, None)
             self.abort_flags.pop(old_id, None)
+            persistent_store.delete_run(old_id, old_run.dataset_id)
 
     def clear(self):
         self.runs.clear()
         self.datasets.clear()
         self.requests.clear()
         self.abort_flags.clear()
+        persistent_store.wipe_runs()
 
 
 run_store = RunStore()
+
+
+async def fire_webhook(url: str, run: RunInfo) -> bool:
+    """Best-effort run-finished webhook: one POST, bounded timeout, and a
+    failed delivery never fails the run."""
+    payload = {
+        "event": "run.finished",
+        "run": run.model_dump(exclude_none=True),
+        "dataset_url": f"/api/v1/datasets/{run.dataset_id}/items",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=settings.webhook_timeout) as client:
+            resp = await client.post(url, json=payload)
+        return resp.status_code < 400
+    except Exception:
+        return False
 
 
 def _items_from_response(resp) -> List[Dict[str, Any]]:
@@ -124,6 +213,7 @@ async def execute_run(run_id: str) -> None:
 
     run.status = "RUNNING"
     run.started_at = _now_iso()
+    run_store.persist(run)
     started = time.monotonic()
     deadline = started + settings.run_time_budget
     cursor: Optional[str] = None
@@ -195,6 +285,7 @@ async def execute_run(run_id: str) -> None:
                 items = [tidy_item(i) for i in items]
             added = dataset.push(items, run.max_items)
             run.item_count = len(dataset.items)
+            run_store.persist(run)  # crash mid-run keeps every page collected so far
             empty_pages = empty_pages + 1 if added == 0 else 0
 
             # No continuation, or two pages of pure duplicates -> platform is done.
@@ -221,3 +312,7 @@ async def execute_run(run_id: str) -> None:
 
     run.finished_at = _now_iso()
     run.duration_seconds = round(time.monotonic() - started, 2)
+    run_store.persist(run)
+
+    if req.webhook_url:
+        await fire_webhook(req.webhook_url, run)

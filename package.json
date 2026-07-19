@@ -1,7 +1,7 @@
 {
   "name": "scrapx",
-  "version": "0.1.0",
-  "description": "AI research agent for the web & 10 social platforms. Run it locally with npm — no Docker required.",
+  "version": "0.2.0",
+  "description": "AI research agent for the web & 10 social platforms — API server, web UI, and MCP server (`scrapx mcp`). Runs locally with npm, no Docker required.",
   "bin": {
     "scrapx": "bin/scrapx.js"
   },
@@ -24,6 +24,8 @@
     "social-media",
     "ai-agent",
     "research-agent",
+    "mcp",
+    "mcp-server",
     "fastapi"
   ],
   "license": "MIT",

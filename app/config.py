@@ -5,7 +5,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     app_name: str = "ScrapeX"
-    app_version: str = "0.1.0"
+    app_version: str = "0.2.0"
     debug: bool = False
 
     # AI provider — bring your own AI (see app/services/ai_provider.py)
@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     run_max_items: int = 1000      # hard cap on max_items per run
     run_page_delay: float = 0.5    # politeness delay between pages
     run_history_limit: int = 200   # runs/datasets kept in memory
+
+    # Persistence — runs, datasets, and schedules survive restarts.
+    # Set SCRAPEX_DB_FILE="" to disable and go back to memory-only.
+    db_file: str = ".scrapex_data.sqlite3"
+
+    # Scheduler — how often the loop checks for due schedules (seconds)
+    scheduler_poll_interval: float = 10.0
+
+    # Webhooks — timeout for run-finished webhook deliveries (seconds)
+    webhook_timeout: float = 10.0
 
     # Research agent
     agent_model: Optional[str] = None  # falls back to ai_model

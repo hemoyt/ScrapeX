@@ -21,25 +21,30 @@ from app.services.social_registry import get_platform, platform_names
 router = APIRouter()
 
 
-@router.post("/runs", response_model=RunInfo, status_code=202)
-async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
-    """Start a dataset run. Poll GET /runs/{id}, then export the dataset."""
+def validate_run_target(platform: str, query_type) -> None:
+    """404/400 unless this platform supports this query_type. Shared by
+    one-off runs and schedules."""
     try:
-        svc = get_platform(req.platform)
+        svc = get_platform(platform)
     except KeyError:
         raise HTTPException(
             status_code=404,
-            detail=f"Unknown platform '{req.platform}'. Available: {platform_names()}",
+            detail=f"Unknown platform '{platform}'. Available: {platform_names()}",
         )
     from app.services.social_base import UNSUPPORTED
 
-    if svc.capabilities.get(req.query_type, UNSUPPORTED) == UNSUPPORTED:
+    if svc.capabilities.get(query_type, UNSUPPORTED) == UNSUPPORTED:
         supported = [qt.value for qt, c in svc.capabilities.items() if c != UNSUPPORTED]
         raise HTTPException(
             status_code=400,
-            detail=f"{svc.name} does not support query_type={req.query_type.value}. Supported: {supported}",
+            detail=f"{svc.name} does not support query_type={query_type.value}. Supported: {supported}",
         )
 
+
+@router.post("/runs", response_model=RunInfo, status_code=202)
+async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
+    """Start a dataset run. Poll GET /runs/{id}, then export the dataset."""
+    validate_run_target(req.platform, req.query_type)
     run = run_store.create(req)
     background_tasks.add_task(execute_run, run.id)
     return run

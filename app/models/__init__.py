@@ -195,6 +195,10 @@ class RunRequest(BaseModel):
         default=False,
         description="Tidy every item as it's collected and add an AI summary of the dataset at the end",
     )
+    webhook_url: Optional[str] = Field(
+        default=None,
+        description="POST a run.finished event here when the run reaches a terminal state",
+    )
 
 
 class RunInfo(BaseModel):
@@ -231,6 +235,44 @@ class DatasetItemsPage(BaseModel):
     limit: int
     count: int
     items: List[Dict[str, Any]]
+
+
+class ScheduleRequest(BaseModel):
+    """Create a recurring dataset run — 'scrape this every N minutes'."""
+    platform: str = Field(..., description="Platform name, e.g. reddit, hackernews, bluesky")
+    query_type: SocialQueryType = Field(default=SocialQueryType.posts)
+    identifier: str = Field(..., description="Username/handle, URL, or search query")
+    interval_minutes: int = Field(..., ge=1, le=60 * 24 * 30, description="Run every N minutes")
+    max_items: int = Field(default=100, ge=1, le=5000)
+    options: Dict[str, Any] = Field(default_factory=dict)
+    clean: bool = False
+    webhook_url: Optional[str] = Field(
+        default=None, description="POST a run.finished event here after every scheduled run"
+    )
+    name: Optional[str] = Field(default=None, description="Human-readable label")
+    enabled: bool = True
+    run_immediately: bool = Field(
+        default=False, description="Fire the first run now instead of waiting one interval"
+    )
+
+
+class ScheduleInfo(BaseModel):
+    id: str
+    name: Optional[str] = None
+    platform: str
+    query_type: str
+    identifier: str
+    interval_minutes: int
+    max_items: int
+    options: Dict[str, Any] = {}
+    clean: bool = False
+    webhook_url: Optional[str] = None
+    enabled: bool = True
+    created_at: str
+    next_run_at: Optional[str] = None   # null while paused
+    last_run_at: Optional[str] = None
+    last_run_id: Optional[str] = None
+    runs_started: int = 0
 
 
 class ExtractRequest(BaseModel):

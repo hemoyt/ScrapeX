@@ -16,6 +16,10 @@ playwright==1.49.1
 # AI / LLM
 openai==1.59.3
 
+# MCP server (`python -m app.mcp_server` / `npx scrapx mcp`)
+# 1.12.x is the newest line compatible with the fastapi/starlette pins above.
+mcp==1.12.4
+
 # Async support
 aiofiles==24.1.0
 python-multipart==0.0.19

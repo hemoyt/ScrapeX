@@ -5,6 +5,7 @@
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
   <img src="https://img.shields.io/badge/python-3.11+-blue" alt="Python">
   <img src="https://img.shields.io/badge/npm-scrapx-brightgreen" alt="npm">
+  <img src="https://img.shields.io/badge/MCP-server-blueviolet" alt="MCP">
   <img src="https://img.shields.io/badge/platforms-10-orange" alt="Platforms">
 </p>
 
@@ -25,6 +26,8 @@ npx scrapx
 ```
 
 First run sets up a private Python virtualenv (`~/.scrapx/venv`) and installs dependencies automatically — you just need Python 3.10+ on your `PATH`. Every run after that starts instantly. Pass `--port 3000` or `--host 127.0.0.1` to change how it binds, or install it globally (`npm install -g scrapx` then just run `scrapx`).
+
+Prefer to use ScrapeX **from inside Claude** instead of an HTTP API? `npx scrapx mcp` runs it as an [MCP server](#-mcp-server--use-scrapex-from-claude--any-mcp-client).
 
 **Open http://localhost:8000 in your browser** — ScrapeX ships with a built-in UI (no build step, no Node):
 
@@ -167,6 +170,58 @@ stateDiagram-v2
 ```
 
 Cursor pagination is implemented natively for **Reddit, Hacker News, Bluesky, and Mastodon** today; other platforms serve a single (still deduped) page per run. Verified live: 150 HN items in 5.2s, 120 Reddit posts in 5.7s, 120 Bluesky posts in 3.7s, 90 Mastodon statuses in 7.2s — all past the old 50-item ceiling.
+
+**Runs, datasets, and schedules survive restarts.** Everything is persisted to SQLite (`SCRAPEX_DB_FILE`, default `.scrapex_data.sqlite3` — no database server to run). Restart the server and your run history and collected datasets are still there; a run that was mid-flight during the restart is honestly marked `ABORTED` with its partial data kept, never left hanging in `RUNNING`. Set `SCRAPEX_DB_FILE=""` for the old memory-only behavior.
+
+**Webhooks** — add `"webhook_url": "https://your-app/hook"` to any run (or schedule) and ScrapeX POSTs a `run.finished` event there when the run reaches a terminal state, with the final run status and a pointer to the dataset. Failed deliveries never fail the run.
+
+### ⏰ Schedules — recurring scrapes
+
+The missing Apify feature: **"scrape this every N minutes."** A schedule is a stored run that re-fires on an interval — each firing is a normal dataset run, so everything above (pagination, datasets, exports, webhooks) applies.
+
+```bash
+# Track HN chatter about "llm agents" every hour, 200 items per snapshot,
+# and ping my app when each snapshot lands:
+curl -X POST localhost:8000/api/v1/schedules -H 'Content-Type: application/json' \
+  -d '{"platform": "hackernews", "query_type": "search", "identifier": "llm agents",
+       "interval_minutes": 60, "max_items": 200, "run_immediately": true,
+       "webhook_url": "https://my-app.example/scrapex-hook", "name": "hn llm watch"}'
+
+curl localhost:8000/api/v1/schedules                    # list (next_run_at, runs_started, last_run_id)
+curl -X POST localhost:8000/api/v1/schedules/ID/pause   # stop firing (resume brings it back)
+curl -X POST localhost:8000/api/v1/schedules/ID/run     # fire one run right now, off-cadence
+curl -X DELETE localhost:8000/api/v1/schedules/ID
+```
+
+Schedules are persisted too — restart the server and they keep firing. If the server was down through a slot, the schedule fires once on the next tick and resumes its cadence (no burst of make-up runs).
+
+---
+
+## 🔌 MCP Server — use ScrapeX from Claude & any MCP client
+
+ScrapeX doubles as a **Model Context Protocol server**: one command exposes web search, page scraping, all 10 social platforms, the profile finder, dataset runs, and the research agent as native tools inside Claude Desktop, Claude Code, Cursor, or any MCP client.
+
+```bash
+# Claude Code
+claude mcp add scrapex -- npx scrapx mcp
+
+# Claude Desktop — add to claude_desktop_config.json:
+{"mcpServers": {"scrapex": {"command": "npx", "args": ["scrapx", "mcp"]}}}
+```
+
+Then just ask Claude things like *"check what r/selfhosted thinks about Coolify this week"* or *"find the username 'mkbhd' on every platform"* — it picks the right ScrapeX tool.
+
+| Tool | What it does |
+|---|---|
+| `scrapex_web_search` | Live web search (DDG → Startpage), keyless |
+| `scrapex_scrape_url` | Any page → clean markdown + links |
+| `scrapex_social` | One platform: profile / posts / post / search |
+| `scrapex_social_search` | One keyword across platforms, concurrently |
+| `scrapex_find_profiles` | A username checked on every platform at once |
+| `scrapex_research` | The full cited research agent (needs an AI key) |
+| `scrapex_start_run` / `scrapex_get_run` / `scrapex_dataset_items` | Apify-style dataset runs, right from chat |
+
+The MCP server calls the scraping engine **in-process** — the HTTP server doesn't need to be running. It shares the same SQLite store, so a dataset run started from Claude shows up in the web UI and vice versa. (Self-hosting from source: `python -m app.mcp_server`.)
 
 ---
 
@@ -405,6 +460,9 @@ flowchart LR
 | `GET` | `/api/v1/runs`, `/api/v1/runs/{id}` | 🆕 List runs / poll run status |
 | `POST` | `/api/v1/runs/{id}/abort` | 🆕 Abort a running job (keeps collected items) |
 | `GET` | `/api/v1/datasets/{id}/items` | 🆕 Page/export a dataset (`format=json\|ndjson\|csv`) |
+| `POST`/`GET` | `/api/v1/schedules` | 🆕 Recurring runs — "scrape this every N minutes" |
+| `POST` | `/api/v1/schedules/{id}/pause`, `/resume`, `/run` | 🆕 Pause / resume / fire a schedule now |
+| `DELETE` | `/api/v1/schedules/{id}` | 🆕 Delete a schedule |
 | `POST` | `/api/v1/profiles/find` | 🆕 Find a username across every platform at once |
 | `GET`/`POST` | `/api/v1/settings/ai` | 🆕 Read/set the AI provider, key & model at runtime (also `/settings/ai/test`, `/clear`) |
 | `POST` | `/api/v1/ai/studio` | 🆕 Send one prompt straight to the configured AI — no tools, no agent loop |
@@ -460,6 +518,13 @@ run   = client.wait_for_run(run["id"])
 items = client.dataset_all_items(run["dataset_id"])          # every item
 csv_  = client.dataset_items(run["dataset_id"], format="csv")  # or export
 
+# Recurring scrapes — fire the same run every hour, webhook on each finish
+sched = client.create_schedule("hackernews", "search", "llm agents",
+                               interval_minutes=60, max_items=200,
+                               webhook_url="https://my-app.example/hook",
+                               run_immediately=True)
+client.pause_schedule(sched["id"]); client.resume_schedule(sched["id"])
+
 # Web search with AI answer
 result = client.search("best vector databases 2026", include_answer=True)
 
@@ -490,6 +555,9 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 | `SCRAPEX_RUN_TIME_BUDGET` | `240` | Seconds a dataset run may spend paginating |
 | `SCRAPEX_RUN_MAX_ITEMS` | `1000` | Hard cap on `max_items` per run |
 | `SCRAPEX_RUN_PAGE_DELAY` | `0.5` | Politeness delay between pages in a run |
+| `SCRAPEX_DB_FILE` | `.scrapex_data.sqlite3` | SQLite file for runs/datasets/schedules; `""` = memory-only |
+| `SCRAPEX_SCHEDULER_POLL_INTERVAL` | `10` | Seconds between due-schedule checks |
+| `SCRAPEX_WEBHOOK_TIMEOUT` | `10` | Seconds for `run.finished` webhook deliveries |
 | `SCRAPEX_SETTINGS_FILE` | `.scrapex_settings.json` | Where the Settings tab persists runtime AI config |
 | `SCRAPEX_NITTER_INSTANCES` | — | Comma-separated Nitter mirrors for Twitter timelines |
 | `SCRAPEX_PROXY_URL` | — | Outbound proxy for scraping |
@@ -508,6 +576,8 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 | Research agent (tool loop + trace) | 🟡 | 🟡 | ✅ |
 | **Social media (10 platforms)** | ❌ | ❌ | ✅ |
 | Apify-style dataset runs (JSON/NDJSON/CSV export) | 🟡 | ❌ | ✅ |
+| Scheduled recurring scrapes + webhooks | 🟡 | ❌ | ✅ |
+| Built-in MCP server (use it from Claude/Cursor) | 🟡 | 🟡 | ✅ |
 | Cross-platform profile finder | ❌ | ❌ | ✅ |
 | Bring your own AI (incl. free local Ollama) | ❌ | ❌ | ✅ |
 | Honest per-platform status | — | — | ✅ |
@@ -521,7 +591,7 @@ Working on ScrapeX itself (not just running it)? Skip the `scrapx` CLI and use t
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-pytest -q                              # 112 tests, no network needed
+pytest -q                              # 150 tests, no network needed
 python scripts/verify_platforms.py    # live smoke test from YOUR egress IP
 uvicorn app.main:app --reload
 ```
@@ -536,10 +606,11 @@ Platforms fight scrapers. Anything marked 🟡 can break or get rate-limited wit
 
 ```
 ScrapeX/
-├── bin/scrapx.js                # npm CLI entry point (`npx scrapx`) — bootstraps a venv & runs uvicorn
+├── bin/scrapx.js                # npm CLI (`npx scrapx` serve / `npx scrapx mcp`) — bootstraps a venv
 ├── package.json                 # npm package "scrapx"
 ├── app/
-│   ├── main.py                  # FastAPI app, auth, rate limiting
+│   ├── main.py                  # FastAPI app, auth, rate limiting, lifespan (scheduler)
+│   ├── mcp_server.py            # MCP server (stdio) — ScrapeX tools for Claude/Cursor/...
 │   ├── config.py                # Settings (SCRAPEX_* env vars)
 │   ├── auth.py                  # Optional API-key auth
 │   ├── routes/
@@ -547,12 +618,15 @@ ScrapeX/
 │   │   ├── scrape.py            # /scrape, /crawl, /search
 │   │   ├── social.py            # /social/{platform}, /social/search
 │   │   ├── datasets.py          # /runs, /datasets — Apify-style jobs & exports
+│   │   ├── schedules.py         # /schedules — recurring runs
 │   │   ├── profiles.py          # /profiles/find — username across all platforms
 │   │   ├── settings.py          # /settings/ai — set the AI provider/key/model from the UI
 │   │   ├── ai_studio.py         # /ai/studio — one-off prompt/response console
 │   │   └── extract.py, health.py
 │   ├── services/
 │   │   ├── agent.py             # ResearchAgent tool loop
+│   │   ├── store.py             # SQLite persistence (runs/datasets/schedules)
+│   │   ├── scheduler.py         # recurring-run scheduler loop
 │   │   ├── ai_provider.py       # bring-your-own-AI: anthropic/openai/.../ollama/custom + model catalog
 │   │   ├── ai_studio.py         # single-shot prompt runner behind /ai/studio
 │   │   ├── ai_cleaner.py        # clean pipeline: tidy + AI summary (clean=true)

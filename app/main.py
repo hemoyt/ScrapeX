@@ -1,4 +1,7 @@
 """ScrapeX — AI Super Agent for Web & Social Media Scraping."""
+import asyncio
+import contextlib
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Depends, HTTPException
@@ -11,7 +14,24 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.auth import require_api_key
 from app.config import settings
 from app.ratelimit import limiter
-from app.routes import scrape, social, extract, health, agent, competitors, datasets, profiles, ai_studio, clean, settings as settings_route
+from app.routes import scrape, social, extract, health, agent, competitors, datasets, profiles, ai_studio, clean, schedules, settings as settings_route
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Hydrate runs/datasets/schedules persisted by a previous process,
+    # then keep the schedule loop running for the app's lifetime.
+    from app.services.datasets import run_store
+    from app.services.scheduler import schedule_store, scheduler_loop
+
+    run_store.load()
+    schedule_store.load()
+    scheduler_task = asyncio.create_task(scheduler_loop())
+    yield
+    scheduler_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await scheduler_task
+
 
 app = FastAPI(
     title="ScrapeX",
@@ -23,6 +43,7 @@ app = FastAPI(
     version=settings.app_version,
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
@@ -61,6 +82,10 @@ app.include_router(
 )
 app.include_router(
     datasets.router, prefix="/api/v1", tags=["Runs & Datasets"],
+    dependencies=[Depends(require_api_key)],
+)
+app.include_router(
+    schedules.router, prefix="/api/v1", tags=["Schedules"],
     dependencies=[Depends(require_api_key)],
 )
 app.include_router(
@@ -143,6 +168,7 @@ async def api_index():
             "social_search": "/api/v1/social/search",
             "runs": "/api/v1/runs",
             "datasets": "/api/v1/datasets/{id}/items",
+            "schedules": "/api/v1/schedules",
             "profile_finder": "/api/v1/profiles/find",
             "settings": "/api/v1/settings/ai",
             "agent": "/api/v1/agent",

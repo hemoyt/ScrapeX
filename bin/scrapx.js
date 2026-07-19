@@ -19,13 +19,16 @@ const VENV_DIR = path.join(STATE_DIR, 'venv');
 const IS_WIN = process.platform === 'win32';
 const VENV_BIN = path.join(VENV_DIR, IS_WIN ? 'Scripts' : 'bin');
 const VENV_PIP = path.join(VENV_BIN, IS_WIN ? 'pip.exe' : 'pip');
+const VENV_PYTHON = path.join(VENV_BIN, IS_WIN ? 'python.exe' : 'python');
 const VENV_UVICORN = path.join(VENV_BIN, IS_WIN ? 'uvicorn.exe' : 'uvicorn');
 const VENV_PLAYWRIGHT = path.join(VENV_BIN, IS_WIN ? 'playwright.exe' : 'playwright');
 const DEPS_MARKER = path.join(VENV_DIR, '.deps-installed');
 const MIN_PYTHON = [3, 10];
 
 function log(msg) {
-  console.log(`[scrapx] ${msg}`);
+  // stderr, not stdout: `scrapx mcp` speaks MCP over stdout and any stray
+  // line there would corrupt the protocol stream.
+  console.error(`[scrapx] ${msg}`);
 }
 
 function fail(msg) {
@@ -52,9 +55,17 @@ function findPython() {
 }
 
 function run(cmd, args) {
-  const res = spawnSync(cmd, args, { stdio: 'inherit', cwd: PKG_ROOT });
+  // Child stdout is routed to our stderr: bootstrap output (pip, playwright)
+  // must never land on stdout, which `scrapx mcp` reserves for the protocol.
+  const res = spawnSync(cmd, args, { stdio: ['inherit', 2, 'inherit'], cwd: PKG_ROOT });
   if (res.error) throw res.error;
   return res.status === 0;
+}
+
+function depsFingerprint() {
+  const crypto = require('crypto');
+  const req = fs.readFileSync(path.join(PKG_ROOT, 'requirements.txt'));
+  return crypto.createHash('sha256').update(req).digest('hex');
 }
 
 function ensureVenv() {
@@ -66,7 +77,14 @@ function ensureVenv() {
     );
   }
 
-  if (fs.existsSync(DEPS_MARKER) && fs.existsSync(VENV_UVICORN)) {
+  // The marker stores a hash of requirements.txt, so an upgraded package
+  // with new dependencies reinstalls automatically.
+  const fingerprint = depsFingerprint();
+  if (
+    fs.existsSync(VENV_UVICORN) &&
+    fs.existsSync(DEPS_MARKER) &&
+    fs.readFileSync(DEPS_MARKER, 'utf8').trim() === fingerprint
+  ) {
     return;
   }
 
@@ -93,7 +111,7 @@ function ensureVenv() {
     );
   }
 
-  fs.writeFileSync(DEPS_MARKER, new Date().toISOString());
+  fs.writeFileSync(DEPS_MARKER, fingerprint);
 }
 
 function ensureDotEnv() {
@@ -106,10 +124,12 @@ function ensureDotEnv() {
 }
 
 function parseArgs(argv) {
-  const opts = { host: '0.0.0.0', port: process.env.PORT || '8000' };
+  const opts = { host: '0.0.0.0', port: process.env.PORT || '8000', command: 'serve' };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--port' || arg === '-p') {
+    if (arg === 'mcp' || arg === 'serve') {
+      opts.command = arg;
+    } else if (arg === '--port' || arg === '-p') {
       opts.port = argv[++i];
     } else if (arg === '--host') {
       opts.host = argv[++i];
@@ -120,17 +140,29 @@ function parseArgs(argv) {
   return opts;
 }
 
+function launch(cmd, args) {
+  const child = spawn(cmd, args, { stdio: 'inherit', cwd: PKG_ROOT });
+  process.on('SIGINT', () => child.kill('SIGINT'));
+  process.on('SIGTERM', () => child.kill('SIGTERM'));
+  child.on('exit', (code) => process.exit(code == null ? 0 : code));
+  child.on('error', (err) => fail(`Failed to start ${cmd}: ${err.message}`));
+}
+
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) {
     console.log(`scrapx — run the ScrapeX research agent locally
 
 Usage:
-  scrapx [--port 8000] [--host 0.0.0.0]
+  scrapx [--port 8000] [--host 0.0.0.0]   start the API server + web UI
+  scrapx mcp                              run as an MCP server (stdio) so AI
+                                          tools can use ScrapeX's scrapers
+                                          directly, e.g.:
+                                            claude mcp add scrapex -- npx scrapx mcp
 
 On first run this creates a private Python virtualenv (~/.scrapx/venv) and
 installs dependencies — requires Python 3.10+ on your PATH. Every run after
-that just starts the server.
+that starts instantly.
 `);
     return;
   }
@@ -138,18 +170,14 @@ that just starts the server.
   ensureVenv();
   ensureDotEnv();
 
+  if (opts.command === 'mcp') {
+    log('Starting ScrapeX MCP server (stdio)...');
+    launch(VENV_PYTHON, ['-m', 'app.mcp_server']);
+    return;
+  }
+
   log(`Starting ScrapeX at http://localhost:${opts.port} (API docs at /docs)`);
-  const child = spawn(
-    VENV_UVICORN,
-    ['app.main:app', '--host', opts.host, '--port', String(opts.port)],
-    { stdio: 'inherit', cwd: PKG_ROOT }
-  );
-
-  process.on('SIGINT', () => child.kill('SIGINT'));
-  process.on('SIGTERM', () => child.kill('SIGTERM'));
-
-  child.on('exit', (code) => process.exit(code == null ? 0 : code));
-  child.on('error', (err) => fail(`Failed to start uvicorn: ${err.message}`));
+  launch(VENV_UVICORN, ['app.main:app', '--host', opts.host, '--port', String(opts.port)]);
 }
 
 main();

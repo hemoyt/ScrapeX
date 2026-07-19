@@ -173,11 +173,13 @@ class ScrapeX:
         identifier: str = "",
         max_items: int = 100,
         clean: bool = False,
+        webhook_url: Optional[str] = None,
         **options,
     ) -> Dict[str, Any]:
         """Start a dataset run: paginates the platform in the background until
         max_items are collected or the server's time budget runs out.
-        clean=True tidies every item and adds an AI summary of the dataset."""
+        clean=True tidies every item and adds an AI summary of the dataset.
+        webhook_url gets POSTed a run.finished event when the run ends."""
         resp = self.client.post(
             f"{self.base_url}/api/v1/runs",
             json={
@@ -187,6 +189,7 @@ class ScrapeX:
                 "max_items": max_items,
                 "options": options,
                 "clean": clean,
+                "webhook_url": webhook_url,
             },
         )
         resp.raise_for_status()
@@ -232,6 +235,68 @@ class ScrapeX:
             offset += page["count"]
             if offset >= page["total"] or page["count"] == 0:
                 return items
+
+    # --- Schedules (recurring runs) ---
+
+    def create_schedule(
+        self,
+        platform: str,
+        query_type: str = "posts",
+        identifier: str = "",
+        interval_minutes: int = 60,
+        max_items: int = 100,
+        clean: bool = False,
+        webhook_url: Optional[str] = None,
+        name: Optional[str] = None,
+        run_immediately: bool = False,
+        **options,
+    ) -> Dict[str, Any]:
+        """Create a recurring dataset run: 'scrape this every N minutes'.
+        Each firing starts a normal run; pair with webhook_url to get
+        notified as each one finishes."""
+        resp = self.client.post(
+            f"{self.base_url}/api/v1/schedules",
+            json={
+                "platform": platform,
+                "query_type": query_type,
+                "identifier": identifier,
+                "interval_minutes": interval_minutes,
+                "max_items": max_items,
+                "options": options,
+                "clean": clean,
+                "webhook_url": webhook_url,
+                "name": name,
+                "run_immediately": run_immediately,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def schedules(self) -> List[Dict[str, Any]]:
+        """List schedules, newest first."""
+        resp = self.client.get(f"{self.base_url}/api/v1/schedules")
+        resp.raise_for_status()
+        return resp.json()
+
+    def delete_schedule(self, schedule_id: str) -> None:
+        resp = self.client.delete(f"{self.base_url}/api/v1/schedules/{schedule_id}")
+        resp.raise_for_status()
+
+    def pause_schedule(self, schedule_id: str) -> Dict[str, Any]:
+        resp = self.client.post(f"{self.base_url}/api/v1/schedules/{schedule_id}/pause")
+        resp.raise_for_status()
+        return resp.json()
+
+    def resume_schedule(self, schedule_id: str) -> Dict[str, Any]:
+        resp = self.client.post(f"{self.base_url}/api/v1/schedules/{schedule_id}/resume")
+        resp.raise_for_status()
+        return resp.json()
+
+    def run_schedule_now(self, schedule_id: str) -> Dict[str, Any]:
+        """Fire one run for a schedule immediately; returns the run."""
+        resp = self.client.post(f"{self.base_url}/api/v1/schedules/{schedule_id}/run")
+        resp.raise_for_status()
+        return resp.json()
 
     def competitors(
         self,
