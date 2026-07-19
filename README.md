@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/status-active-brightgreen" alt="Status">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
   <img src="https://img.shields.io/badge/python-3.11+-blue" alt="Python">
-  <img src="https://img.shields.io/badge/docker-ready-brightgreen" alt="Docker">
+  <img src="https://img.shields.io/badge/npm-scrapx-brightgreen" alt="npm">
   <img src="https://img.shields.io/badge/platforms-10-orange" alt="Platforms">
 </p>
 
@@ -19,10 +19,12 @@ The pain this solves: keeping a pulse on what the internet is saying — for res
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/hemoyt/ScrapeX.git && cd ScrapeX
-docker compose up -d
+npm install scrapx
+npx scrapx
 # Web UI at http://localhost:8000 — API docs at /docs
 ```
+
+First run sets up a private Python virtualenv (`~/.scrapx/venv`) and installs dependencies automatically — you just need Python 3.10+ on your `PATH`. Every run after that starts instantly. Pass `--port 3000` or `--host 127.0.0.1` to change how it binds, or install it globally (`npm install -g scrapx` then just run `scrapx`).
 
 **Open http://localhost:8000 in your browser** — ScrapeX ships with a built-in UI (no build step, no Node):
 
@@ -86,19 +88,21 @@ Returns `{answer, sources[], steps[], usage, status}`. The `steps` array is a fu
 
 **Coolify** (or any Nixpacks platform like Railway):
 
-1. New Resource → **Public Repository** → paste `https://github.com/hemoyt/ScrapeX`
-2. **Build Pack:** pick **Dockerfile** (recommended — includes the Playwright browser for JS rendering & the TikTok fallback). Nixpacks also works now: the repo ships a `Procfile` + `nixpacks.toml` with the right start command.
+1. New Resource → **Public Repository** → paste `https://github.com/ibrahembuilds/ScrapeX`
+2. **Build Pack:** **Nixpacks** — the repo ships a `Procfile` + `nixpacks.toml` with the right start command. The Playwright browser (JS rendering & the TikTok fallback) is skipped by default; add a `playwright install chromium` build step if you need it.
 3. **Ports Exposes:** set to **`8000`** — this is the step everyone misses. ScrapeX listens on 8000; if the proxy points at the default 3000 you'll get Traefik's `404 page not found` even though the deploy says Finished.
 4. Deploy, then open the domain → the web UI is at `/`, docs at `/docs`, health at `/health`.
 
 Set your env vars (`SCRAPEX_AI_PROVIDER`, `SCRAPEX_AI_API_KEY`, `SCRAPEX_API_KEYS`…) in the platform's Environment tab. If you're exposing the API publicly, set `SCRAPEX_API_KEYS` so auth is enforced.
 
-**Plain Docker on any VPS:**
+**Plain VPS, no platform:**
 
 ```bash
-git clone https://github.com/hemoyt/ScrapeX.git && cd ScrapeX
-docker compose up -d          # listens on :8000
+git clone https://github.com/ibrahembuilds/ScrapeX.git && cd ScrapeX
+npx scrapx --host 0.0.0.0 --port 8000
 ```
+
+Run it under a process manager (`pm2`, `systemd`, `screen`) so it survives logout and restarts on reboot.
 
 ---
 
@@ -513,6 +517,8 @@ All via `.env` (copy from `.env.example`), prefix `SCRAPEX_`:
 
 ## 🧪 Development
 
+Working on ScrapeX itself (not just running it)? Skip the `scrapx` CLI and use the source directly:
+
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
 pytest -q                              # 112 tests, no network needed
@@ -530,6 +536,8 @@ Platforms fight scrapers. Anything marked 🟡 can break or get rate-limited wit
 
 ```
 ScrapeX/
+├── bin/scrapx.js                # npm CLI entry point (`npx scrapx`) — bootstraps a venv & runs uvicorn
+├── package.json                 # npm package "scrapx"
 ├── app/
 │   ├── main.py                  # FastAPI app, auth, rate limiting
 │   ├── config.py                # Settings (SCRAPEX_* env vars)
@@ -560,8 +568,7 @@ ScrapeX/
 │   └── models/                  # Pydantic schemas
 ├── sdk/python/scrapex/          # Python client
 ├── scripts/verify_platforms.py  # live smoke test
-├── tests/                       # pytest suite (mocked HTTP)
-└── docker-compose.yml, Dockerfile
+└── tests/                       # pytest suite (mocked HTTP)
 ```
 
 ## 📄 License

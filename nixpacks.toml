@@ -1,10 +1,11 @@
 # Nixpacks config — used when a platform (Coolify, Railway, ...) builds this
-# repo with Nixpacks instead of the Dockerfile. Gives the Python provider the
-# start command it can't infer for a FastAPI app.
+# repo with Nixpacks. Gives the Python provider the start command it can't
+# infer for a FastAPI app.
 #
-# NOTE: the Dockerfile build is the recommended path — it also installs the
-# Playwright browser used for JS rendering and the TikTok fallback. Nixpacks
-# builds run fine without it; those two features just degrade gracefully.
+# NOTE: this build doesn't install the Playwright browser used for JS
+# rendering and the TikTok fallback — those two features just degrade
+# gracefully without it. Run `playwright install chromium` in the build
+# step if you need them.
 
 [variables]
 NIXPACKS_PYTHON_VERSION = "3.11"

@@ -1,0 +1,41 @@
+{
+  "name": "scrapx",
+  "version": "0.1.0",
+  "description": "AI research agent for the web & 10 social platforms. Run it locally with npm — no Docker required.",
+  "bin": {
+    "scrapx": "bin/scrapx.js"
+  },
+  "files": [
+    "bin",
+    "app",
+    "requirements.txt",
+    ".env.example",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node bin/scrapx.js"
+  },
+  "keywords": [
+    "scraper",
+    "web-scraping",
+    "social-media",
+    "ai-agent",
+    "research-agent",
+    "fastapi"
+  ],
+  "license": "MIT",
+  "author": "KanyouAI",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ibrahembuilds/ScrapeX.git"
+  },
+  "homepage": "https://github.com/ibrahembuilds/ScrapeX#readme",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ]
+}
